@@ -1,0 +1,10 @@
+{
+  "id": "INV-TEST-001",
+  "clientName": "PT Teknologi Maju",
+  "date": "2025-10-25",
+  "customerId": "cust-pt-teknologi-maju",
+  "items": [
+    { "description": "Website Development", "unitPrice": 15000000, "quantity": 1, "taxRate": 11 },
+    { "description": "UI/UX Design", "unitPrice": 5000000, "quantity": 1, "taxRate": 11 }
+  ]
+}

@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+model Settings {
+  id            Int    @id @default(autoincrement())
+  userId        String @unique
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName   String @default("YB Invoice Maker")
+  logoUrl       String @default("")
+  bankName      String @default("Bank BCA")
+  bankAccount   String @default("1234567890")
+  /// Nama pemilik/direktur penandatangan
+  ownerName     String @default("")
+  /// Jabatan pemilik/direktur penandatangan
+  ownerTitle    String @default("")
+  /// Daftar rekening bank (JSON array of { bankName, accountNumber, alias })
+  bankAccounts  Json?
+  invoicePrefix String @default("INV")
+  defaultTaxRate Int   @default(11)
+  currency      String @default("IDR")
+  language      String @default("id-ID")
+  themeKey      String @default("pastel1")
+  npwp          String @default("")
+  address       String @default("Jakarta, Indonesia")
+  /// Kredensial SMTP untuk pengiriman email invoice
+  smtpEmail     String @default("")
+  smtpAppPassword String @default("")
+}
+
+enum InvoiceStatus {
+  draft
+  terkirim
+  lunas
+}
+
+model Invoice {
+  id        String        @id
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientName String
+  date      String
+  dueDate   String?
+  status    InvoiceStatus @default(terkirim)
+  note      String?
+  total     Int
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  // optional relation to Customer
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  items     InvoiceItem[]
+  payments  Payment[]
+}
+
+model InvoiceItem {
+  id         String  @id @default(uuid())
+  invoiceId  String
+  description String
+  unitPrice  Int
+  quantity   Int
+  taxRate    Int?
+  amount     Int
+
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id         String  @id @default(uuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoiceId  String
+  amount     Int
+  date       String
+  method     String
+  note       String?
+  createdAt  DateTime @default(now())
+
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  companyName String?
+  email       String?
+  phone       String?
+  address     String?
+  taxId       String?
+  createdAt   DateTime @default(now())
+
+  invoices    Invoice[]
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  price       Int
+  unit        String?
+  taxRate     Int?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  name          String?
+  createdAt     DateTime @default(now())
+
+  sessions      Session[]
+  settings      Settings?
+  invoices      Invoice[]
+  payments      Payment[]
+  customers     Customer[]
+  products      Product[]
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  token      String   @unique
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime?
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
