@@ -152,15 +152,13 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         // Tunggu AppShell memuat settings dari API (atau lanjut setelah grace period kecil)
         await Promise.race([
           page.waitForResponse((resp) => resp.url().includes("/api/settings") && resp.status() === 200),
-          page.waitForTimeout(1500),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
         ]);
-        // Pastikan info bank tampil di halaman sebelum cetak
-        const primaryBankName = (Array.isArray(settings?.bankAccounts) && settings!.bankAccounts!.length > 0)
-          ? settings!.bankAccounts![0].bankName
-          : (settings?.bankName || "");
-        const primaryAccountNumber = (Array.isArray(settings?.bankAccounts) && settings!.bankAccounts!.length > 0)
-          ? settings!.bankAccounts![0].accountNumber
-          : (settings?.bankAccount || "");
+        // Pastikan info bank tampil di halaman sebelum cetak (aman terhadap null)
+        const accounts = ((settings?.bankAccounts as any[]) ?? []);
+        const primary = accounts[0] || null;
+        const primaryBankName = (primary?.bankName ?? settings?.bankName ?? "");
+        const primaryAccountNumber = (primary?.accountNumber ?? settings?.bankAccount ?? "");
         await page.waitForFunction(
           (bn: string, acc: string) => {
             const text = document.body.innerText || "";
