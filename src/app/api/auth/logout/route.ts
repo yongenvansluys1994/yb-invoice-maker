@@ -5,24 +5,24 @@ const SESSION_COOKIE = "session";
 
 export async function POST(req: Request) {
   try {
-    const cookie = (req as any).cookies?.get?.(SESSION_COOKIE)?.value; // Fallback untuk kompatibilitas
-    const token = cookie || (await getCookieFromHeader(req));
-    if (token) {
-      await prisma.session.deleteMany({ where: { token } });
-    }
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set(SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
-    return res;
-  } catch (e) {
-    const res = NextResponse.json({ ok: true });
-    res.cookies.set(SESSION_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
-    return res;
-  }
-}
+    const cookieHeader = req.headers.get("cookie");
+    const m = cookieHeader?.match(/(?:^|;\s*)session=([^;]+)/);
+    const token = m ? decodeURIComponent(m[1]) : null;
 
-async function getCookieFromHeader(req: Request): Promise<string | null> {
-  const cookieHeader = req.headers.get("cookie");
-  if (!cookieHeader) return null;
-  const m = cookieHeader.match(/(?:^|;\s*)session=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : null;
+    if (token) {
+      await prisma.session.delete({ where: { token } }).catch(() => {});
+    }
+
+    const res = NextResponse.json({ ok: true }, { status: 200 });
+    res.cookies.set(SESSION_COOKIE, "", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0,
+    });
+    return res;
+  } catch {
+    return NextResponse.json({ error: "Gagal logout" }, { status: 500 });
+  }
 }
