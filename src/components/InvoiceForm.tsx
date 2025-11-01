@@ -136,9 +136,19 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
     const d = (date || today);
     (async () => {
       try {
-        const res = await fetch(`/api/invoices/next-id?date=${encodeURIComponent(d)}`);
-        const json = await res.json();
-        if (json?.id) setInvoiceId(json.id);
+        const res = await fetch(`/api/invoices/next-id?date=${encodeURIComponent(d)}`, { credentials: "include" });
+        if (res.ok) {
+          const json = await res.json();
+          if (json?.id) {
+            setInvoiceId(json.id);
+            return;
+          }
+        }
+      } catch {}
+      try {
+        // Fallback lokal jika gagal ambil dari server (mis. belum login)
+        const { generateInvoiceId } = await import("@/lib/settings");
+        setInvoiceId(generateInvoiceId(d));
       } catch {}
     })();
   }, [date, initial?.id, today]);

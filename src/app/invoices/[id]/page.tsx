@@ -31,6 +31,7 @@ export default function EditInvoicePage() {
         const res = await fetch("/api/invoices", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify(payload),
         });
         if (res.ok) {
@@ -47,6 +48,7 @@ export default function EditInvoicePage() {
                 const sendRes = await fetch(`/api/invoices/${created.id}/send-email`, {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
+                  credentials: "include",
                   body: JSON.stringify({ toEmail }),
                 });
                 const j = await sendRes.json().catch(() => ({}));
@@ -65,11 +67,14 @@ export default function EditInvoicePage() {
             return;
           }
         } else {
-          router.push("/invoices");
+          // Tampilkan pesan error dari server jika ada, jangan silent redirect
+          const err = await res.json().catch(() => ({ error: "Gagal membuat invoice" }));
+          const msg = typeof err?.error === "string" ? err.error : "Gagal membuat invoice";
+          toast.error(msg, "Gagal", 4500);
           return;
         }
       } catch (e) {
-        router.push("/invoices");
+        toast.error("Terjadi kesalahan jaringan saat membuat invoice", "Gagal", 4500);
       }
     };
     return (
@@ -88,6 +93,7 @@ export default function EditInvoicePage() {
       const res = await fetch(`/api/invoices/${payload.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(payload),
       });
       if (res.ok) {
@@ -104,6 +110,7 @@ export default function EditInvoicePage() {
               const sendRes = await fetch(`/api/invoices/${payload.id}/send-email`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                credentials: "include",
                 body: JSON.stringify({ toEmail }),
               });
               const j = await sendRes.json().catch(() => ({}));
@@ -122,11 +129,13 @@ export default function EditInvoicePage() {
           return;
         }
       } else {
-        router.push("/invoices");
+        const err = await res.json().catch(() => ({ error: "Gagal memperbarui invoice" }));
+        const msg = typeof err?.error === "string" ? err.error : "Gagal memperbarui invoice";
+        toast.error(msg, "Gagal", 4500);
         return;
       }
     } catch (e) {
-      router.push("/invoices");
+      toast.error("Terjadi kesalahan jaringan saat memperbarui invoice", "Gagal", 4500);
     }
   };
 

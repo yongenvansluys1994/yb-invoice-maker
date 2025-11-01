@@ -69,39 +69,49 @@ export async function POST(req: Request) {
   const ppnAmount = Math.round(subtotalBase * (ppnRate / 100));
   const pphAmount = Math.round(subtotalBase * (pphRate / 100));
   const total = subtotalBase + ppnAmount - pphAmount;
-  const created = await prisma.invoice.create({
-    data: {
-      userId,
-      id: body.id,
-      clientName: body.clientName,
-      date: body.date,
-      dueDate: body.dueDate ?? null,
-      status: body.status ?? undefined,
-      note: body.note ?? null,
-      total,
-      customerId: body.customerId ?? null,
-      items: {
-        create: itemsWithAmount.map((it) => ({
-          description: it.description,
-          unitPrice: it.unitPrice,
-          quantity: it.quantity,
-          taxRate: null,
-          amount: it.amount,
-        })),
+  try {
+    const created = await prisma.invoice.create({
+      data: {
+        userId,
+        id: body.id,
+        clientName: body.clientName,
+        date: body.date,
+        dueDate: body.dueDate ?? null,
+        status: body.status ?? undefined,
+        note: body.note ?? null,
+        total,
+        customerId: body.customerId ?? null,
+        items: {
+          create: itemsWithAmount.map((it) => ({
+            description: it.description,
+            unitPrice: it.unitPrice,
+            quantity: it.quantity,
+            taxRate: null,
+            amount: it.amount,
+          })),
+        },
       },
-    },
-    include: { items: true },
-  });
-  const shaped: Invoice = {
-    id: created.id,
-    clientName: created.clientName,
-    date: created.date,
-    dueDate: created.dueDate ?? undefined,
-    status: created.status,
-    note: created.note ?? undefined,
-    total: created.total,
-    items: created.items.map((it) => ({ id: it.id, description: it.description, unitPrice: it.unitPrice, quantity: it.quantity, taxRate: it.taxRate ?? undefined })),
-    customerId: created.customerId ?? undefined,
-  };
-  return NextResponse.json(shaped, { status: 201 });
+      include: { items: true },
+    });
+    const shaped: Invoice = {
+      id: created.id,
+      clientName: created.clientName,
+      date: created.date,
+      dueDate: created.dueDate ?? undefined,
+      status: created.status,
+      note: created.note ?? undefined,
+      total: created.total,
+      items: created.items.map((it) => ({ id: it.id, description: it.description, unitPrice: it.unitPrice, quantity: it.quantity, taxRate: it.taxRate ?? undefined })),
+      customerId: created.customerId ?? undefined,
+    };
+    return NextResponse.json(shaped, { status: 201 });
+  } catch (e: any) {
+    const code = e?.code;
+    if (code === "P2002") {
+      // Unique constraint failed on id (kemungkinan bentrok dengan invoice user lain)
+      return NextResponse.json({ error: "Nomor invoice sudah digunakan. Ubah tanggal atau coba lagi untuk mengambil nomor baru." }, { status: 409 });
+    }
+    const msg = typeof e?.message === "string" ? e.message : "Gagal membuat invoice";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }

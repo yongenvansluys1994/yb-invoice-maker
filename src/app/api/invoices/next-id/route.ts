@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
   const prefix = settings?.invoicePrefix || "INV";
 
   const likePrefix = `${prefix}-${dateKey}-`;
-  const existing = await prisma.invoice.findMany({ where: { userId, id: { startsWith: likePrefix } }, select: { id: true } });
+  // Cari semua invoice dengan prefix & tanggal yang sama secara global untuk menghindari bentrok antar user
+  const existing = await prisma.invoice.findMany({ where: { id: { startsWith: likePrefix } }, select: { id: true } });
   let maxSeq = 0;
   for (const e of existing) {
     const parts = e.id.split("-");

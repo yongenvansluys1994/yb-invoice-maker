@@ -15,10 +15,22 @@ export default function ProfilPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    const p = getProfile();
-    setFullName(p.fullName);
-    setEmail(p.email);
-    setPhone(p.phone);
+    (async () => {
+      let meEmail = "";
+      let meName = "";
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (res.ok) {
+          const me = await res.json();
+          meEmail = me?.email || "";
+          meName = me?.name || "";
+        }
+      } catch {}
+      const p = getProfile();
+      setFullName(p.fullName || meName);
+      setEmail(p.email || meEmail);
+      setPhone(p.phone);
+    })();
   }, []);
 
   const initials = useMemo(() => {
@@ -53,7 +65,7 @@ export default function ProfilPage() {
         </div>
         <div className="flex-1">
           <div className="font-semibold">{fullName || "Admin User"}</div>
-          <div className="text-sm text-black/60">{email || "vansluysyongen@gmail.com"}</div>
+          <div className="text-sm text-black/60">{email || "—"}</div>
           <div className="text-sm text-black/60">{getSettings().companyName || "YB Teknologi"}</div>
         </div>
       </SoftCard>
@@ -71,7 +83,7 @@ export default function ProfilPage() {
           </div>
           <div>
             <label className="text-sm font-medium">Email *</label>
-            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm bg-white/80" placeholder="vansluysyongen@gmail.com" />
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded-lg border border-black/10 px-3 py-2 text-sm bg-white/80" placeholder="email@domain.com" />
           </div>
         </div>
         <div className="mt-4">
