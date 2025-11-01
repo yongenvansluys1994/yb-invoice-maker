@@ -1,13 +1,26 @@
 const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
 const prisma = new PrismaClient();
 
 async function main() {
-  // Settings single row
+  // Create or get a demo user (used to own all seeded data)
+  const passwordHash = await bcrypt.hash('demo123', 10);
+  const user = await prisma.user.upsert({
+    where: { email: 'demo@yb.com' },
+    update: { name: 'Demo User' },
+    create: {
+      email: 'demo@yb.com',
+      passwordHash,
+      name: 'Demo User',
+    },
+  });
+
+  // Settings single row (unique by userId)
   await prisma.settings.upsert({
-    where: { id: 1 },
+    where: { userId: user.id },
     update: {},
     create: {
-      id: 1,
+      userId: user.id,
       companyName: 'YB Invoice Maker',
       logoUrl: '',
       bankName: 'Bank BCA',
@@ -55,7 +68,7 @@ async function main() {
         address: c.address ?? null,
         taxId: c.taxId ?? null,
       },
-      create: c,
+      create: { ...c, userId: user.id },
     });
   }
 
@@ -110,7 +123,7 @@ async function main() {
         taxRate: p.taxRate ?? null,
         active: p.active,
       },
-      create: p,
+      create: { ...p, userId: user.id },
     });
   }
 
@@ -154,6 +167,7 @@ async function main() {
         note: inv.note,
         total,
         customerId: inv.customerId ?? null,
+        userId: user.id,
       },
       create: {
         id: inv.id,
@@ -164,6 +178,7 @@ async function main() {
         note: inv.note,
         total,
         customerId: inv.customerId ?? null,
+        userId: user.id,
       },
     });
 
