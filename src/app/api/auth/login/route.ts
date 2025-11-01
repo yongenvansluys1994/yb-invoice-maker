@@ -35,6 +35,8 @@ export async function POST(req: Request) {
     });
     return res;
   } catch (e) {
+    // Log detail error untuk membantu debugging di Railway
+    try { console.error("[login] error:", e); } catch {}
     return NextResponse.json({ error: "Gagal login" }, { status: 500 });
   }
 }

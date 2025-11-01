@@ -26,6 +26,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, user: { id: user.id, email: user.email, name: user.name } }, { status: 201 });
   } catch (e) {
+    // Log detail error untuk membantu debugging di Railway
+    try { console.error("[register] error:", e); } catch {}
     return NextResponse.json({ error: "Gagal mendaftar" }, { status: 500 });
   }
 }
