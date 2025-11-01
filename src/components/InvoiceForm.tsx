@@ -71,13 +71,17 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
     }
   }, [customers, customerId]);
 
-  const total = useMemo(() => {
+  const subtotalBase = useMemo(() => {
     return items.reduce((sum, it) => {
       const base = (it.unitPrice || 0) * (it.quantity || 0);
-      const tax = it.taxRate ? Math.round(base * (it.taxRate / 100)) : 0;
-      return sum + base + tax;
+      return sum + base;
     }, 0);
   }, [items]);
+  const ppnRate = typeof settings.defaultTaxRate === "number" ? settings.defaultTaxRate : 0;
+  const pphRate = typeof (settings as any).defaultPphRate === "number" ? (settings as any).defaultPphRate : 1.5;
+  const ppnAmount = useMemo(() => Math.round(subtotalBase * (ppnRate / 100)), [subtotalBase, ppnRate]);
+  const pphAmount = useMemo(() => Math.round(subtotalBase * (pphRate / 100)), [subtotalBase, pphRate]);
+  const total = useMemo(() => subtotalBase + ppnAmount - pphAmount, [subtotalBase, ppnAmount, pphAmount]);
 
   const [invoiceId, setInvoiceId] = useState<string>(initial?.id ?? "");
   useEffect(() => {
@@ -113,7 +117,7 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
   };
 
   const addItem = () => {
-    const newItem: InvoiceItem = { id: crypto.randomUUID(), description: "", unitPrice: 0, quantity: 1, taxRate: settings.defaultTaxRate };
+    const newItem: InvoiceItem = { id: crypto.randomUUID(), description: "", unitPrice: 0, quantity: 1 };
     setItems((prev) => [...prev, newItem]);
   };
 
@@ -125,7 +129,7 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
     setSelectedProductByItem((prev) => ({ ...prev, [itemId]: productId }));
     const p = products.find((x) => x.id === productId);
     if (!p) return;
-    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, description: p.name, unitPrice: p.price, taxRate: typeof p.taxRate === "number" ? p.taxRate : it.taxRate } : it)));
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, description: p.name, unitPrice: p.price } : it)));
     setExtraDescByItem((prev) => ({ ...prev, [itemId]: p.description || "" }));
   };
 
@@ -195,6 +199,17 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
             <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="rounded-xl border border-black/10 bg-white/80 px-3 py-2" />
           </div>
         </div>
+        {/* Ringkasan Pajak Global di bawah tanggal */}
+        <div className="grid md:grid-cols-2 gap-4 mt-4">
+          <div className="rounded-xl border border-black/10 bg-white/70 p-3">
+            <div className="text-xs text-black/60">Pajak PPN ({ppnRate}%)</div>
+            <div className="text-violet-600 font-semibold">{mounted ? formatCurrency(ppnAmount) : Math.round(ppnAmount || 0)}</div>
+          </div>
+          <div className="rounded-xl border border-black/10 bg-white/70 p-3 text-right">
+            <div className="text-xs text-black/60">PPh ({pphRate}%)</div>
+            <div className="text-violet-600 font-semibold">{mounted ? formatCurrency(pphAmount) : Math.round(pphAmount || 0)}</div>
+          </div>
+        </div>
       </SoftCard>
 
       <SoftCard className="p-6">
@@ -205,8 +220,7 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
 
         {items.map((it, idx) => {
           const base = (it.unitPrice || 0) * (it.quantity || 0);
-          const tax = it.taxRate ? Math.round(base * (it.taxRate / 100)) : 0;
-          const subtotal = base + tax;
+          const subtotal = base;
           return (
             <div key={it.id} className="mb-4 border-t border-black/10 pt-4">
               <div className="grid gap-2 mb-2">
@@ -248,7 +262,7 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
                 </div>
               </div>
 
-              <div className="grid md:grid-cols-4 gap-2">
+              <div className="grid md:grid-cols-3 gap-2">
                 <div className="grid gap-2">
                   <label className="text-sm">Jumlah <span className="text-red-500">*</span></label>
                   <input
@@ -268,15 +282,6 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
                       const num = Number(digits || 0);
                       setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, unitPrice: num } : p)));
                     }}
-                    className="rounded-xl border border-black/10 bg-white/80 px-3 py-2"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <label className="text-sm">Pajak (%)</label>
-                  <input
-                    type="number"
-                    value={it.taxRate ?? 0}
-                    onChange={(e) => setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, taxRate: Number(e.target.value) } : p)))}
                     className="rounded-xl border border-black/10 bg-white/80 px-3 py-2"
                   />
                 </div>
@@ -305,9 +310,25 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
       </SoftCard>
 
       <div className="soft-card p-6">
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-black/70">Total Invoice</div>
-          <div className="text-violet-700 font-semibold">{mounted ? formatCurrency(total) : Math.round(total || 0)}</div>
+        <div className="grid md:grid-cols-2 gap-2 mb-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-black/70">Subtotal</div>
+            <div className="text-violet-700 font-semibold">{mounted ? formatCurrency(subtotalBase) : Math.round(subtotalBase || 0)}</div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-black/70">PPN ({ppnRate}%)</div>
+            <div className="text-violet-700 font-semibold">{mounted ? formatCurrency(ppnAmount) : Math.round(ppnAmount || 0)}</div>
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-2">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-black/70">PPh ({pphRate}%)</div>
+            <div className="text-violet-700 font-semibold">{mounted ? formatCurrency(pphAmount) : Math.round(pphAmount || 0)}</div>
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium">Total Invoice</div>
+            <div className="text-violet-700 font-semibold">{mounted ? formatCurrency(total) : Math.round(total || 0)}</div>
+          </div>
         </div>
       </div>
 

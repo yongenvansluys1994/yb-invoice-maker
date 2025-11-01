@@ -39,14 +39,20 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const { id } = await context.params;
   const body = (await req.json()) as Partial<Invoice>;
   const hasItems = Array.isArray(body.items);
+  // Gunakan pajak global dari Settings
+  const s = await prisma.settings.findUnique({ where: { userId } });
+  const ppnRate = typeof s?.defaultTaxRate === "number" ? s!.defaultTaxRate : 0;
+  const pphRate = typeof (s as any)?.defaultPphRate === "number" ? (s as any).defaultPphRate : 1.5;
   const itemsWithAmount = hasItems
     ? body.items!.map((it) => {
         const base = it.unitPrice * it.quantity;
-        const tax = it.taxRate ? Math.round(base * (it.taxRate / 100)) : 0;
-        return { ...it, amount: base + tax };
+        return { ...it, amount: base };
       })
     : undefined;
-  const total = itemsWithAmount ? itemsWithAmount.reduce((sum, it) => sum + it.amount, 0) : undefined;
+  const subtotalBase = itemsWithAmount ? itemsWithAmount.reduce((sum, it) => sum + it.amount, 0) : undefined;
+  const total = typeof subtotalBase === "number"
+    ? subtotalBase + Math.round(subtotalBase * (ppnRate / 100)) - Math.round(subtotalBase * (pphRate / 100))
+    : undefined;
 
   const existing = await prisma.invoice.findUnique({ where: { id } });
   if (!existing || existing.userId !== userId) {
@@ -74,7 +80,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
           description: it.description,
           unitPrice: it.unitPrice,
           quantity: it.quantity,
-          taxRate: it.taxRate ?? null,
+          taxRate: null,
           amount: it.amount,
         },
       });

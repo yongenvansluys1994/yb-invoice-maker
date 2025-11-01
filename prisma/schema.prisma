@@ -23,6 +23,8 @@ model Settings {
   bankAccounts  Json?
   invoicePrefix String @default("INV")
   defaultTaxRate Int   @default(11)
+  /// Tarif PPh (persen) default, mis. 1.5
+  defaultPphRate Float @default(1.5)
   currency      String @default("IDR")
   language      String @default("id-ID")
   themeKey      String @default("pastel1")

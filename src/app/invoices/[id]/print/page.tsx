@@ -92,8 +92,11 @@ export default function PrintInvoicePage() {
   if (!invoice) return <div className="p-6 text-sm">Sedang Memuat Invoice.</div>;
 
   const subtotal = invoice.items.reduce((sum, it) => sum + it.unitPrice * it.quantity, 0);
-  const tax = invoice.items.reduce((sum, it) => sum + (it.taxRate ? (it.unitPrice * it.quantity * it.taxRate) / 100 : 0), 0);
-  const grand = Math.round(subtotal + tax);
+  const ppnRate = typeof s.defaultTaxRate === "number" ? s.defaultTaxRate : 0;
+  const pphRate = typeof s.defaultPphRate === "number" ? s.defaultPphRate : 1.5;
+  const ppnAmount = Math.round(subtotal * (ppnRate / 100));
+  const pphAmount = Math.round(subtotal * (pphRate / 100));
+  const grand = Math.round(subtotal + ppnAmount - pphAmount);
 
   return (
     <div className="p-6">
@@ -135,21 +138,18 @@ export default function PrintInvoicePage() {
                 <th className="text-left py-2">Deskripsi</th>
                 <th className="text-right py-2">Harga Satuan</th>
                 <th className="text-right py-2">Qty</th>
-                <th className="text-right py-2">Pajak</th>
                 <th className="text-right py-2">Jumlah</th>
               </tr>
             </thead>
             <tbody>
               {invoice.items.map((it) => {
                 const line = it.unitPrice * it.quantity;
-                const taxAmt = it.taxRate ? (line * it.taxRate) / 100 : 0;
                 return (
                   <tr key={it.id} className="border-b">
                     <td className="py-2 pr-4">{it.description}</td>
                     <td className="py-2 text-right">{formatCurrency(it.unitPrice)}</td>
                     <td className="py-2 text-right">{it.quantity}</td>
-                    <td className="py-2 text-right">{it.taxRate ? `${it.taxRate}%` : "-"}</td>
-                    <td className="py-2 text-right">{formatCurrency(line + taxAmt)}</td>
+                    <td className="py-2 text-right">{formatCurrency(line)}</td>
                   </tr>
                 );
               })}
@@ -165,8 +165,12 @@ export default function PrintInvoicePage() {
               <span>{formatCurrency(subtotal)}</span>
             </div>
             <div className="flex justify-between py-1">
-              <span>Pajak</span>
-              <span>{formatCurrency(tax)}</span>
+              <span>Pajak PPN ({ppnRate}%)</span>
+              <span>{formatCurrency(ppnAmount)}</span>
+            </div>
+            <div className="flex justify-between py-1">
+              <span>Pph ({pphRate}%)</span>
+              <span>{formatCurrency(pphAmount)}</span>
             </div>
             <div className="flex justify-between py-1 font-semibold border-t mt-2 pt-2">
               <span>Total</span>

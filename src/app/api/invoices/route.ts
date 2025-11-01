@@ -57,12 +57,18 @@ export async function POST(req: Request) {
   const userId = await getSessionUserId(req);
   if (!userId) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const body = (await req.json()) as Invoice;
+  // Hitung pajak global berdasarkan Settings
+  const s = await prisma.settings.findUnique({ where: { userId } });
+  const ppnRate = typeof s?.defaultTaxRate === "number" ? s!.defaultTaxRate : 0;
+  const pphRate = typeof (s as any)?.defaultPphRate === "number" ? (s as any).defaultPphRate : 1.5;
   const itemsWithAmount = body.items.map((it) => {
     const base = it.unitPrice * it.quantity;
-    const tax = it.taxRate ? Math.round(base * (it.taxRate / 100)) : 0;
-    return { ...it, amount: base + tax };
+    return { ...it, amount: base };
   });
-  const total = itemsWithAmount.reduce((sum, it) => sum + it.amount, 0);
+  const subtotalBase = itemsWithAmount.reduce((sum, it) => sum + it.amount, 0);
+  const ppnAmount = Math.round(subtotalBase * (ppnRate / 100));
+  const pphAmount = Math.round(subtotalBase * (pphRate / 100));
+  const total = subtotalBase + ppnAmount - pphAmount;
   const created = await prisma.invoice.create({
     data: {
       userId,
@@ -79,7 +85,7 @@ export async function POST(req: Request) {
           description: it.description,
           unitPrice: it.unitPrice,
           quantity: it.quantity,
-          taxRate: it.taxRate ?? null,
+          taxRate: null,
           amount: it.amount,
         })),
       },

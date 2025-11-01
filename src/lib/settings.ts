@@ -8,6 +8,7 @@ export type AppSettings = {
   ownerTitle?: string;
   invoicePrefix?: string;
   defaultTaxRate?: number;
+  defaultPphRate?: number;
   currency?: string; // e.g., IDR, USD
   language?: string; // e.g., id-ID, en-US
   themeKey?: string;
@@ -36,6 +37,7 @@ const defaults: Required<AppSettings> = {
   ownerTitle: "",
   invoicePrefix: "INV",
   defaultTaxRate: 11,
+  defaultPphRate: 1.5,
   currency: "IDR",
   language: "id-ID",
   themeKey: "pastel1",
@@ -60,11 +62,12 @@ export function getSettings(): Required<AppSettings> {
         // Logo selalu dari lokal (jika ada)
         if (!merged.logoUrl && local.logoUrl) merged.logoUrl = local.logoUrl as any;
         // Field regional dan format selalu mengikuti lokal jika tersedia
-        if (local.currency) merged.currency = local.currency as any;
-        if (local.language) merged.language = local.language as any;
-        if (local.themeKey) merged.themeKey = local.themeKey as any;
-        if (local.invoicePrefix) merged.invoicePrefix = local.invoicePrefix as any;
-        if (typeof local.defaultTaxRate === "number") merged.defaultTaxRate = local.defaultTaxRate as any;
+      if (local.currency) merged.currency = local.currency as any;
+      if (local.language) merged.language = local.language as any;
+      if (local.themeKey) merged.themeKey = local.themeKey as any;
+      if (local.invoicePrefix) merged.invoicePrefix = local.invoicePrefix as any;
+      if (typeof local.defaultTaxRate === "number") merged.defaultTaxRate = local.defaultTaxRate as any;
+      if (typeof local.defaultPphRate === "number") merged.defaultPphRate = local.defaultPphRate as any;
       } catch {}
       // Fallback: jika nilai dari server kosong, pakai defaults
       if (!merged.currency || String(merged.currency).trim() === "") merged.currency = defaults.currency;
@@ -72,6 +75,7 @@ export function getSettings(): Required<AppSettings> {
       if (!merged.themeKey || String(merged.themeKey).trim() === "") merged.themeKey = defaults.themeKey;
       if (!merged.invoicePrefix || String(merged.invoicePrefix).trim() === "") merged.invoicePrefix = defaults.invoicePrefix;
       if (typeof merged.defaultTaxRate !== "number") merged.defaultTaxRate = defaults.defaultTaxRate;
+      if (typeof merged.defaultPphRate !== "number") merged.defaultPphRate = defaults.defaultPphRate;
       // Backward compatibility for single bank fields
       if ((merged.bankAccounts?.length || 0) > 0) {
         merged.bankName = merged.bankAccounts![0].bankName;
@@ -96,6 +100,7 @@ export function getSettings(): Required<AppSettings> {
       themeKey: s.themeKey,
       invoicePrefix: s.invoicePrefix,
       defaultTaxRate: s.defaultTaxRate,
+      defaultPphRate: s.defaultPphRate,
     };
     const merged = { ...defaults, ...allowedFromLocal } as Required<AppSettings>;
     if ((merged.bankAccounts?.length || 0) > 0) {

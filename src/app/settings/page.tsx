@@ -15,6 +15,7 @@ type AppSettings = {
   ownerTitle?: string;
   invoicePrefix?: string;
   defaultTaxRate?: number;
+  defaultPphRate?: number;
   currency?: string;
   language?: string;
   themeKey?: string;
@@ -39,6 +40,7 @@ function loadSettings(): AppSettings {
       ownerTitle: "",
       invoicePrefix: (s.invoicePrefix ?? "INV") as any,
       defaultTaxRate: (typeof s.defaultTaxRate === "number" ? s.defaultTaxRate : 11) as any,
+      defaultPphRate: (typeof s.defaultPphRate === "number" ? s.defaultPphRate : 1.5) as any,
       currency: (s.currency ?? "IDR") as any,
       language: (s.language ?? "id-ID") as any,
       themeKey: (s.themeKey ?? "pastel1") as any,
@@ -53,7 +55,7 @@ function loadSettings(): AppSettings {
       merged.bankAccounts = [ { bankName: merged.bankName, accountNumber: merged.bankAccount, alias: "Utama" } ];
     }
     return merged;
-  } catch { return { companyName: "YB Invoice Maker", invoicePrefix: "INV", defaultTaxRate: 11, currency: "IDR", language: "id-ID", themeKey: "pastel1" }; }
+  } catch { return { companyName: "YB Invoice Maker", invoicePrefix: "INV", defaultTaxRate: 11, defaultPphRate: 1.5, currency: "IDR", language: "id-ID", themeKey: "pastel1" }; }
 }
 
 function applyTheme(key: string) {
@@ -90,22 +92,25 @@ export default function SettingsPage() {
         // Selalu ambil dari lokal/default untuk bidang yang dikecualikan dari DB
         const localDefaults = loadSettings();
         const excludedKeys: (keyof AppSettings)[] = ["currency", "language", "themeKey", "invoicePrefix", "defaultTaxRate"];
+        // Sertakan defaultPphRate agar tetap konsisten dari lokal jika server kosong
+        excludedKeys.push("defaultPphRate");
         excludedKeys.forEach((k) => {
           (next as any)[k] = (local[k] ?? (localDefaults as any)[k]);
         });
 
         setSettings(next);
-        try {
-          const allowedLocal: Partial<AppSettings> = {
-            logoUrl: next.logoUrl,
-            currency: next.currency,
-            language: next.language,
-            themeKey: next.themeKey,
-            invoicePrefix: next.invoicePrefix,
-            defaultTaxRate: next.defaultTaxRate,
-          };
-          localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
-        } catch {}
+          try {
+            const allowedLocal: Partial<AppSettings> = {
+              logoUrl: next.logoUrl,
+              currency: next.currency,
+              language: next.language,
+              themeKey: next.themeKey,
+              invoicePrefix: next.invoicePrefix,
+              defaultTaxRate: next.defaultTaxRate,
+              defaultPphRate: next.defaultPphRate,
+            };
+            localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
+          } catch {}
         applyTheme(String(next.themeKey || "pastel1"));
       } catch {
         // fallback ke local
@@ -126,36 +131,38 @@ export default function SettingsPage() {
         toSave.bankAccount = toSave.bankAccounts![0].accountNumber;
       }
       // Simpan hanya field yang diizinkan ke localStorage
-      try {
-        const allowedLocal: Partial<AppSettings> = {
-          logoUrl: toSave.logoUrl,
-          currency: toSave.currency,
-          language: toSave.language,
-          themeKey: toSave.themeKey,
-          invoicePrefix: toSave.invoicePrefix,
-          defaultTaxRate: toSave.defaultTaxRate,
-        };
-        localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
-      } catch {}
+          try {
+            const allowedLocal: Partial<AppSettings> = {
+              logoUrl: toSave.logoUrl,
+              currency: toSave.currency,
+              language: toSave.language,
+              themeKey: toSave.themeKey,
+              invoicePrefix: toSave.invoicePrefix,
+              defaultTaxRate: toSave.defaultTaxRate,
+              defaultPphRate: toSave.defaultPphRate,
+            };
+            localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
+          } catch {}
 
       // Simpan ke server untuk semua field inti termasuk owner dan daftar rekening (tanpa logo)
-      const payload = {
-        companyName: toSave.companyName || "YB Invoice Maker",
-        bankName: toSave.bankName || "Bank BCA",
-        bankAccount: toSave.bankAccount || "1234567890",
-        address: toSave.address || "",
-        npwp: toSave.npwp || "",
-        invoicePrefix: toSave.invoicePrefix || "INV",
-        defaultTaxRate: typeof toSave.defaultTaxRate === "number" ? toSave.defaultTaxRate : 11,
-        currency: toSave.currency || "IDR",
-        language: toSave.language || "id-ID",
-        themeKey: toSave.themeKey || "pastel1",
-        ownerName: toSave.ownerName || "",
-        ownerTitle: toSave.ownerTitle || "",
-        smtpEmail: toSave.smtpEmail || "",
-        smtpAppPassword: toSave.smtpAppPassword || "",
-        bankAccounts: (toSave.bankAccounts || []).map(a => ({ bankName: a.bankName, accountNumber: a.accountNumber, alias: a.alias || undefined })),
-      };
+        const payload = {
+          companyName: toSave.companyName || "YB Invoice Maker",
+          bankName: toSave.bankName || "Bank BCA",
+          bankAccount: toSave.bankAccount || "1234567890",
+          address: toSave.address || "",
+          npwp: toSave.npwp || "",
+          invoicePrefix: toSave.invoicePrefix || "INV",
+          defaultTaxRate: typeof toSave.defaultTaxRate === "number" ? toSave.defaultTaxRate : 11,
+          defaultPphRate: typeof toSave.defaultPphRate === "number" ? toSave.defaultPphRate : 1.5,
+          currency: toSave.currency || "IDR",
+          language: toSave.language || "id-ID",
+          themeKey: toSave.themeKey || "pastel1",
+          ownerName: toSave.ownerName || "",
+          ownerTitle: toSave.ownerTitle || "",
+          smtpEmail: toSave.smtpEmail || "",
+          smtpAppPassword: toSave.smtpAppPassword || "",
+          bankAccounts: (toSave.bankAccounts || []).map(a => ({ bankName: a.bankName, accountNumber: a.accountNumber, alias: a.alias || undefined })),
+        };
       let serverSaved = false;
       try {
         const res = await fetch("/api/settings", {
@@ -331,6 +338,11 @@ export default function SettingsPage() {
             <label className="text-sm">Tarif Pajak Default (%)</label>
             <input type="number" min={0} max={100} className="mt-1 w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2" value={settings.defaultTaxRate ?? 11} onChange={(e) => setSettings({ ...settings, defaultTaxRate: Number(e.target.value) || 0 })} />
             <div className="text-xs text-black/50 mt-1">Tarif pajak yang akan digunakan secara default</div>
+          </div>
+          <div>
+            <label className="text-sm">Tarif PPh (%)</label>
+            <input type="number" step="0.1" min={0} max={100} className="mt-1 w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2" value={typeof settings.defaultPphRate === "number" ? settings.defaultPphRate : 1.5} onChange={(e) => setSettings({ ...settings, defaultPphRate: Number(e.target.value) || 0 })} />
+            <div className="text-xs text-black/50 mt-1">Biasanya 1.5% (PPh). Diambil sebagai pajak withholding.</div>
           </div>
         </div>
       </SoftCard>
