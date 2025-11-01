@@ -44,10 +44,9 @@ export default function DashboardPage() {
   useEffect(() => {
     try {
       const s = getSettings();
-      const dismissed = sessionStorage.getItem("invgenz:ownerReminder:dismissed") === "1";
       const missingOwner = !s.ownerName || String(s.ownerName).trim() === "";
       const missingTitle = !s.ownerTitle || String(s.ownerTitle).trim() === "";
-      if (!dismissed && (missingOwner || missingTitle)) {
+      if (missingOwner || missingTitle) {
         setShowProfileReminder(true);
       }
     } catch {}
@@ -101,7 +100,7 @@ export default function DashboardPage() {
     <div className="grid gap-6">
       {showProfileReminder && (
         <div className="fixed inset-0 z-50 grid place-items-center">
-          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => { setShowProfileReminder(false); try { sessionStorage.setItem("invgenz:ownerReminder:dismissed", "1"); } catch {} }} />
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => { setShowProfileReminder(false); }} />
           <SoftCard className="relative z-10 w-full max-w-lg p-5">
             <div className="flex items-start gap-3">
               <div className="h-9 w-9 rounded-xl bg-yellow-100 text-yellow-700 flex items-center justify-center">
@@ -117,7 +116,6 @@ export default function DashboardPage() {
                 className="px-3 py-2 rounded-xl border border-black/10"
                 onClick={() => {
                   setShowProfileReminder(false);
-                  try { sessionStorage.setItem("invgenz:ownerReminder:dismissed", "1"); } catch {}
                 }}
               >
                 Nanti Saja
@@ -125,7 +123,6 @@ export default function DashboardPage() {
               <a
                 href="/settings"
                 className="px-3 py-2 rounded-xl bg-violet-600 text-white"
-                onClick={() => { try { sessionStorage.setItem("invgenz:ownerReminder:dismissed", "1"); } catch {} }}
               >
                 Buka Pengaturan
               </a>
