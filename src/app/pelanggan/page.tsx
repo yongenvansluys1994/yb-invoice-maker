@@ -71,8 +71,16 @@ export default function PelangganPage() {
     async function loadCustomers() {
       setLoading(true);
       try {
-        const res = await fetch("/api/customers");
-        const dbItems: Customer[] = await res.json();
+        const res = await fetch("/api/customers", { credentials: "include" });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Gagal memuat pelanggan" }));
+          const msg = typeof err?.error === "string" ? err.error : "Gagal memuat pelanggan";
+          toast.error(msg);
+          setItems(SAMPLE_CUSTOMERS);
+          return;
+        }
+        const raw = await res.json().catch(() => []);
+        const dbItems: Customer[] = Array.isArray(raw) ? raw : [];
         // One-time migration from localStorage -> DB
         const migrated = localStorage.getItem("invgenz:customersMigrated") === "1";
         const stored: Customer[] = JSON.parse(localStorage.getItem("invgenz:customers") || "[]");
@@ -85,6 +93,7 @@ export default function PelangganPage() {
                 await fetch("/api/customers", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
+                  credentials: "include",
                   body: JSON.stringify({
                     id: c.id,
                     name: c.name,
@@ -101,8 +110,9 @@ export default function PelangganPage() {
           localStorage.setItem("invgenz:customersMigrated", "1");
           // Reload from API after import
           try {
-            const res2 = await fetch("/api/customers");
-            const dbItems2: Customer[] = await res2.json();
+            const res2 = await fetch("/api/customers", { credentials: "include" });
+            const raw2 = await res2.json().catch(() => []);
+            const dbItems2: Customer[] = Array.isArray(raw2) ? raw2 : [];
             setItems(dbItems2);
             return;
           } catch {}
@@ -147,6 +157,7 @@ export default function PelangganPage() {
         const res = await fetch("/api/customers", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             id: editingId,
             name: form.name.trim(),
@@ -169,6 +180,7 @@ export default function PelangganPage() {
         const res = await fetch("/api/customers", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({
             name: form.name.trim(),
             company: form.company.trim() || undefined,
@@ -217,6 +229,7 @@ export default function PelangganPage() {
       const res = await fetch("/api/customers", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ id }),
       });
       if (res.ok) {

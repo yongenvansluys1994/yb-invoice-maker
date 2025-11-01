@@ -34,8 +34,16 @@ export default function InvoicesPage() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/invoices");
-        const serverList: Invoice[] = await res.json();
+        const res = await fetch("/api/invoices", { credentials: "include" });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Gagal memuat invoice" }));
+          const msg = typeof err?.error === "string" ? err.error : "Gagal memuat invoice";
+          toast.error(msg, "Gagal", 4500);
+          setList([]);
+          return;
+        }
+        const raw = await res.json().catch(() => []);
+        const serverList: Invoice[] = Array.isArray(raw) ? raw : [];
 
         const views: ViewInvoice[] = serverList.map((inv) => {
           const existingStatus = (inv as any).status as ViewInvoice["status"] | undefined;
@@ -53,6 +61,9 @@ export default function InvoicesPage() {
         });
 
         setList(views);
+      } catch {
+        toast.error("Kesalahan jaringan saat memuat invoice", "Gagal", 4500);
+        setList([]);
       } finally {
         setLoading(false);
       }
@@ -84,13 +95,15 @@ export default function InvoicesPage() {
     if (!ok) return;
     setRemovingId(id);
     try {
-      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE", credentials: "include" });
       if (res.ok) {
         setList((prev) => prev.filter((i) => i.id !== id));
         toast.success("Invoice berhasil dihapus");
       } else {
         toast.error("Gagal menghapus invoice");
       }
+    } catch {
+      toast.error("Kesalahan jaringan saat menghapus invoice");
     } finally {
       setRemovingId(null);
     }

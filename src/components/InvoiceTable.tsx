@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Invoice } from "@/types/invoice";
 import SoftCard from "./SoftCard";
 import { formatCurrency, formatDate } from "@/lib/settings";
+import { toast } from "@/lib/toast";
 
 export default function InvoiceTable() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -15,9 +16,22 @@ export default function InvoiceTable() {
 
   useEffect(() => {
     (async () => {
-      const res = await fetch("/api/invoices");
-      const serverList: Invoice[] = await res.json();
-      setInvoices(serverList);
+      try {
+        const res = await fetch("/api/invoices", { credentials: "include" });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Gagal memuat invoice" }));
+          const msg = typeof err?.error === "string" ? err.error : "Gagal memuat invoice";
+          toast.error(msg);
+          setInvoices([]);
+          return;
+        }
+        const raw = await res.json().catch(() => []);
+        const serverList: Invoice[] = Array.isArray(raw) ? raw : [];
+        setInvoices(serverList);
+      } catch {
+        toast.error("Kesalahan jaringan saat memuat invoice");
+        setInvoices([]);
+      }
     })();
   }, []);
 
@@ -36,12 +50,18 @@ export default function InvoiceTable() {
   async function remove(id: string) {
     setRemovingId(id);
     try {
-      await fetch(`/api/invoices/${id}`, { method: "DELETE" });
-      setInvoices((prev) => prev.filter((i) => i.id !== id));
+      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE", credentials: "include" });
+      if (res.ok) {
+        setInvoices((prev) => prev.filter((i) => i.id !== id));
+      } else {
+        toast.error("Gagal menghapus invoice");
+      }
       try {
         const localList: Invoice[] = JSON.parse(localStorage.getItem("invgenz:invoices") || "[]");
         localStorage.setItem("invgenz:invoices", JSON.stringify(localList.filter((i) => i.id !== id)));
       } catch {}
+    } catch {
+      toast.error("Kesalahan jaringan saat menghapus invoice");
     } finally {
       setRemovingId(null);
     }
