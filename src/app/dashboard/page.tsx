@@ -5,7 +5,7 @@ import StatCard from "@/components/StatCard";
 import ChartMini from "@/components/ChartMini";
 import ChartBarMini from "@/components/ChartBarMini";
 import type { Invoice } from "@/types/invoice";
-import { FileText, DollarSign, Clock, Users } from "lucide-react";
+import { FileText, DollarSign, Clock, Users, AlertTriangle } from "lucide-react";
 import { formatCurrency, formatDate, getSettings } from "@/lib/settings";
 
 function monthLabels(count: number) {
@@ -21,6 +21,7 @@ function monthLabels(count: number) {
 
 export default function DashboardPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [showProfileReminder, setShowProfileReminder] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -37,6 +38,19 @@ export default function DashboardPage() {
         setInvoices([]);
       }
     })();
+  }, []);
+
+  // Tampilkan modal pengingat bila nama pemilik/penandatangan belum diisi
+  useEffect(() => {
+    try {
+      const s = getSettings();
+      const dismissed = sessionStorage.getItem("invgenz:ownerReminder:dismissed") === "1";
+      const missingOwner = !s.ownerName || String(s.ownerName).trim() === "";
+      const missingTitle = !s.ownerTitle || String(s.ownerTitle).trim() === "";
+      if (!dismissed && (missingOwner || missingTitle)) {
+        setShowProfileReminder(true);
+      }
+    } catch {}
   }, []);
 
   const totalRevenue = useMemo(
@@ -85,6 +99,40 @@ export default function DashboardPage() {
 
   return (
     <div className="grid gap-6">
+      {showProfileReminder && (
+        <div className="fixed inset-0 z-50 grid place-items-center">
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" onClick={() => { setShowProfileReminder(false); try { sessionStorage.setItem("invgenz:ownerReminder:dismissed", "1"); } catch {} }} />
+          <SoftCard className="relative z-10 w-full max-w-lg p-5">
+            <div className="flex items-start gap-3">
+              <div className="h-9 w-9 rounded-xl bg-yellow-100 text-yellow-700 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="text-base font-semibold">Pengaturan Belum Lengkap</div>
+                <div className="text-sm text-black/70 mt-1">Sebelum memulai, silahkan ke menu Pengaturan untuk mengisi Profil Perusahaan dan pengaturan Invoice Anda.</div>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                className="px-3 py-2 rounded-xl border border-black/10"
+                onClick={() => {
+                  setShowProfileReminder(false);
+                  try { sessionStorage.setItem("invgenz:ownerReminder:dismissed", "1"); } catch {}
+                }}
+              >
+                Nanti Saja
+              </button>
+              <a
+                href="/settings"
+                className="px-3 py-2 rounded-xl bg-violet-600 text-white"
+                onClick={() => { try { sessionStorage.setItem("invgenz:ownerReminder:dismissed", "1"); } catch {} }}
+              >
+                Buka Pengaturan
+              </a>
+            </div>
+          </SoftCard>
+        </div>
+      )}
       <div>
         <h2 className="text-2xl font-semibold">Dashboard</h2>
         <p className="text-sm text-black/60">Selamat datang kembali! Berikut ringkasan bisnis Anda.</p>

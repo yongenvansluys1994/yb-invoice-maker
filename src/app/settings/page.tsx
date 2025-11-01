@@ -335,7 +335,7 @@ export default function SettingsPage() {
             <div className="text-xs text-black/50 mt-1">Contoh format: {`${settings.invoicePrefix || "INV"}-${new Date().toISOString().slice(0,10).replaceAll("-","")}-001`}</div>
           </div>
           <div>
-            <label className="text-sm">Tarif Pajak Default (%)</label>
+            <label className="text-sm">Tarif Ppn (%)</label>
             <input type="number" min={0} max={100} className="mt-1 w-full rounded-xl border border-black/10 bg-white/80 px-3 py-2" value={settings.defaultTaxRate ?? 11} onChange={(e) => setSettings({ ...settings, defaultTaxRate: Number(e.target.value) || 0 })} />
             <div className="text-xs text-black/50 mt-1">Tarif pajak yang akan digunakan secara default</div>
           </div>

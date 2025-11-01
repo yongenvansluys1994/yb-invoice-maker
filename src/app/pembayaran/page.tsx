@@ -39,6 +39,7 @@ export default function PembayaranPage() {
   });
   const [amountText, setAmountText] = useState<string>("0");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -118,6 +119,7 @@ export default function PembayaranPage() {
   }
 
   async function savePayment() {
+    if (saving) return;
     const errs: Record<string, string> = {};
     if (!form.invoiceId) errs.invoiceId = "Pilih invoice";
     if (!form.amount || form.amount <= 0) errs.amount = "Masukkan nominal";
@@ -125,6 +127,7 @@ export default function PembayaranPage() {
     setErrors(errs);
     if (Object.keys(errs).length) return;
     try {
+      setSaving(true);
       const res = await fetch("/api/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -149,6 +152,8 @@ export default function PembayaranPage() {
       toast.success("Pembayaran berhasil dicatat");
     } catch {
       toast.error("Terjadi kesalahan jaringan");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -377,7 +382,14 @@ export default function PembayaranPage() {
               </div>
               <div className="flex items-center justify-end gap-2 mt-2">
                 <button className="px-3 py-2 rounded-xl border border-black/10" onClick={() => setModalOpen(false)}>Batal</button>
-                <button className="px-3 py-2 rounded-xl bg-violet-500 hover:bg-violet-600 text-white" onClick={savePayment}>Simpan</button>
+                <button
+                  className="px-3 py-2 rounded-xl bg-violet-500 hover:bg-violet-600 text-white disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+                  onClick={savePayment}
+                  disabled={saving}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Simpan
+                </button>
               </div>
             </div>
           </SoftCard>

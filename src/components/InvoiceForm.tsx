@@ -61,6 +61,53 @@ export default function InvoiceForm({ initial, onSubmit }: { initial?: Invoice; 
     })();
   }, []);
 
+  // Pisahkan 'Nama Item' vs 'Deskripsi' ketika masuk mode edit
+  // Contoh format gabungan yang disimpan: "Nama Item — Deskripsi tambahan"
+  useEffect(() => {
+    if (!initial || !initial.items || initial.items.length === 0) return;
+    const nextExtra: Record<string, string> = {};
+    let changed = false;
+
+    const splitDescription = (desc?: string): { base: string; extra: string } => {
+      const d = (desc || "").trim();
+      if (!d) return { base: "", extra: "" };
+      // Prefer delimiter em dash surrounded by spaces
+      const marker = " — ";
+      if (d.includes(marker)) {
+        const parts = d.split(marker);
+        const base = (parts.shift() || "").trim();
+        const extra = parts.join(marker).trim();
+        return { base, extra };
+      }
+      // Fallback: pisah berdasarkan baris baru
+      if (d.includes("\n")) {
+        const lines = d.split("\n");
+        const base = (lines.shift() || "").trim();
+        const extra = lines.join("\n").trim();
+        return { base, extra };
+      }
+      return { base: d, extra: "" };
+    };
+
+    setItems((prev) => {
+      const next = prev.map((it) => {
+        if (!it.description) return it;
+        const { base, extra } = splitDescription(it.description);
+        if (extra) nextExtra[it.id] = extra;
+        if (base !== it.description) {
+          changed = true;
+          return { ...it, description: base };
+        }
+        return it;
+      });
+      return changed ? next : prev;
+    });
+
+    if (Object.keys(nextExtra).length) {
+      setExtraDescByItem((prev) => ({ ...prev, ...nextExtra }));
+    }
+  }, [initial]);
+
   // Prefill email pelanggan saat edit: ketika daftar pelanggan sudah dimuat dan
   // customerId dari invoice tersedia, isi field email dengan email pelanggan.
   useEffect(() => {
