@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import AppShell from "@/components/AppShell";
-import logoYB from "@/components/logo.png";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -19,9 +18,6 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id">
-      <head>
-        <link rel="icon" href={logoYB.src} type="image/png" />
-      </head>
       <body className={`${inter.variable} antialiased bg-background text-foreground`}>
         <AppShell>{children}</AppShell>
       </body>
