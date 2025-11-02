@@ -7,6 +7,7 @@ import { User as UserIcon, Mail, Lock, Facebook, Apple } from "lucide-react";
 import { toast } from "@/lib/toast";
 import Image from "next/image";
 import LoginBg from "@/components/Untitled.png";
+import logoYB from "@/components/logo.png";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -61,16 +62,11 @@ export default function RegisterPage() {
       className="object-cover mix-blend-overlay opacity-40"
     />
     <div className="relative z-10 text-center text-white flex flex-col items-center">
-      {company?.logoUrl ? (
-        <img
-          src={company.logoUrl}
-          className="h-20 w-20 rounded-xl object-cover mb-3"
-        />
-      ) : (
-        <div className="h-20 w-20 rounded-xl bg-white/20 flex items-center justify-center text-3xl mb-3">
-          💼
-        </div>
-      )}
+      <Image
+        src={logoYB}
+        alt="YB Logo"
+        className="h-20 w-20 rounded-xl object-cover mb-3"
+      />
       <h2 className="text-3xl font-semibold mb-8 tracking-wide">
         YB Invoice Maker
       </h2>
@@ -94,16 +90,11 @@ export default function RegisterPage() {
   <div className="flex items-center justify-center p-10 bg-white relative">
     {/* Logo di atas card */}
     <div className="absolute top-10 flex flex-col items-center w-full">
-      {company?.logoUrl ? (
-        <img
-          src={company.logoUrl}
-          className="h-14 w-14 rounded-lg object-cover mb-2"
-        />
-      ) : (
-        <div className="h-14 w-14 rounded-lg bg-violet-100 text-violet-700 flex items-center justify-center text-2xl mb-2">
-          💼
-        </div>
-      )}
+      <Image
+        src={logoYB}
+        alt="YB Logo"
+        className="h-14 w-14 rounded-lg object-cover mb-2"
+      />
       <span className="text-xl font-semibold text-black/80">
         YB Invoice Maker
       </span>
