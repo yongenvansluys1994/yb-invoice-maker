@@ -43,23 +43,19 @@ export default function EditInvoicePage() {
           } else {
             // Kirim email HANYA jika status terkirim
             if ((created.status || "terkirim") === "terkirim") {
-              try {
-                const toEmail = ctx?.email;
-                const sendRes = await fetch(`/api/invoices/${created.id}/send-email`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  credentials: "include",
-                  body: JSON.stringify({ toEmail }),
-                });
-                const j = await sendRes.json().catch(() => ({}));
-                const msg = sendRes.ok ? (j?.message || "Email invoice berhasil dikirim") : (j?.error || "Gagal mengirim email invoice");
-                if (sendRes.ok) {
-                  toast.success(msg, "Berhasil", 4500);
-                } else {
-                  toast.error(msg, "Gagal", 4500);
-                }
-              } catch (e) {
-                toast.error("Terjadi kesalahan saat mengirim email invoice", "Gagal", 4500);
+              const toEmail = ctx?.email;
+              // Enqueue background send agar UI tidak menunggu lama
+              const sendRes = await fetch(`/api/invoices/${created.id}/send-email/enqueue`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ toEmail }),
+              });
+              const j = await sendRes.json().catch(() => ({}));
+              if (sendRes.ok) {
+                toast.success(j?.message || "Email invoice sedang dikirim di background", "Berhasil", 4500);
+              } else {
+                toast.error(j?.error || "Gagal menjadwalkan pengiriman email", "Gagal", 4500);
               }
             }
             // Setelah menampilkan toast, langsung pindah halaman
@@ -105,23 +101,18 @@ export default function EditInvoicePage() {
         } else {
           // Kirim email HANYA jika status terkirim
           if ((updated.status || "terkirim") === "terkirim") {
-            try {
-              const toEmail = ctx?.email;
-              const sendRes = await fetch(`/api/invoices/${payload.id}/send-email`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify({ toEmail }),
-              });
-              const j = await sendRes.json().catch(() => ({}));
-              const msg = sendRes.ok ? (j?.message || "Email invoice berhasil dikirim") : (j?.error || "Gagal mengirim email invoice");
-              if (sendRes.ok) {
-                toast.success(msg, "Berhasil", 4500);
-              } else {
-                toast.error(msg, "Gagal", 4500);
-              }
-            } catch (e) {
-              toast.error("Terjadi kesalahan saat mengirim email invoice", "Gagal", 4500);
+            const toEmail = ctx?.email;
+            const sendRes = await fetch(`/api/invoices/${payload.id}/send-email/enqueue`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              credentials: "include",
+              body: JSON.stringify({ toEmail }),
+            });
+            const j = await sendRes.json().catch(() => ({}));
+            if (sendRes.ok) {
+              toast.success(j?.message || "Email invoice sedang dikirim di background", "Berhasil", 4500);
+            } else {
+              toast.error(j?.error || "Gagal menjadwalkan pengiriman email", "Gagal", 4500);
             }
           }
           // Setelah menampilkan toast, langsung pindah halaman

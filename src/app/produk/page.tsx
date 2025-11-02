@@ -77,9 +77,13 @@ export default function ProdukPage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/products");
-        const list: Product[] = await res.json();
-        setItems(list || []);
+        const res = await fetch("/api/products", { credentials: "include" });
+        if (res.ok) {
+          const list: unknown = await res.json();
+          setItems(Array.isArray(list) ? (list as Product[]) : []);
+        } else {
+          throw new Error("Failed to fetch products");
+        }
       } catch {
         const stored = JSON.parse(localStorage.getItem("invgenz:products") || "[]");
         if (stored.length) setItems(stored);

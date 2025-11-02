@@ -144,9 +144,10 @@ export default function SettingsPage() {
             localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
           } catch {}
 
-      // Simpan ke server untuk semua field inti termasuk owner dan daftar rekening (tanpa logo)
+      // Simpan ke server untuk semua field inti termasuk owner, daftar rekening, dan logo
         const payload = {
           companyName: toSave.companyName || "YB Invoice Maker",
+          logoUrl: toSave.logoUrl || "",
           bankName: toSave.bankName || "Bank BCA",
           bankAccount: toSave.bankAccount || "1234567890",
           address: toSave.address || "",

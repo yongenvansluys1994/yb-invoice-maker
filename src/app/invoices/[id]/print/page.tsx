@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import type { Invoice } from "@/types/invoice";
-import { getSettings, formatCurrency, formatDate } from "@/lib/settings";
+import { getSettings, fetchSettings, formatCurrency, formatDate } from "@/lib/settings";
 
 export default function PrintInvoicePage() {
   const params = useParams<{ id: string }>();
@@ -11,16 +11,22 @@ export default function PrintInvoicePage() {
     const raw = search?.get("pdf");
     return raw !== null && raw !== undefined && String(raw).toLowerCase() !== "0" && String(raw).toLowerCase() !== "false";
   }, [search]);
+  const serverMode = useMemo(() => {
+    const raw = search?.get("server");
+    return raw === "1";
+  }, [search]);
 
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [ready, setReady] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
-  const s = useMemo(() => getSettings(), []);
+  // Muat settings dari server agar logo, pemilik, jabatan, dan rekening tampil saat dicetak via Puppeteer
+  const [s, setS] = useState(getSettings());
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/invoices/${params.id}`);
+        // Pastikan cookie sesi selalu terkirim agar API mengembalikan data saat diakses Puppeteer
+        const res = await fetch(`/api/invoices/${params.id}`, { credentials: "include" });
         if (res.ok) {
           setInvoice(await res.json());
         } else {
@@ -32,6 +38,18 @@ export default function PrintInvoicePage() {
     })();
   }, [params.id]);
 
+  // Ambil pengaturan dari server (session) agar tidak bergantung pada localStorage
+  useEffect(() => {
+    (async () => {
+      try {
+        const serverSettings = await fetchSettings();
+        setS(serverSettings);
+      } catch {
+        // Biarkan tetap pakai getSettings() jika gagal fetch
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     if (!invoice) return;
     const t = setTimeout(() => setReady(true), 150);
@@ -40,6 +58,10 @@ export default function PrintInvoicePage() {
 
   useEffect(() => {
     if (!ready) return;
+    if (serverMode) {
+      // Mode server: jangan panggil window.print atau generator PDF klien
+      return;
+    }
     if (pdfMode) {
       (async () => {
         try {
@@ -99,7 +121,14 @@ export default function PrintInvoicePage() {
   const grand = Math.round(subtotal + ppnAmount - pphAmount);
 
   return (
-    <div className="p-6">
+    <div className="p-6 print-wrapper">
+      <style>{`
+        @page { size: A4; margin: 0 }
+        @media print {
+          html, body { margin: 0; padding: 0 }
+          .print-wrapper { padding: 0 !important }
+        }
+      `}</style>
       {/* Kertas A4 */}
       <div ref={sheetRef} className="relative mx-auto bg-white w-[210mm] min-h-[297mm] shadow-sm border border-black/10 text-black">
         {/* Header: logo kiri, di kanan nama perusahaan lalu alamat */}
@@ -218,6 +247,8 @@ export default function PrintInvoicePage() {
             </div>
           </div>
         ) : null}
+        {/* Marker siap cetak (untuk Puppeteer menunggu readiness) */}
+        {ready ? <div id="print-ready" data-ok="1" style={{ display: "none" }} /> : null}
       </div>
     </div>
   );

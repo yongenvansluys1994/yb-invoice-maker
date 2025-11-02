@@ -5,6 +5,20 @@ import nodemailer from "nodemailer";
 import fs from "fs";
 import path from "path";
 export const runtime = "nodejs";
+import { getBrowser } from "@/lib/puppeteerShared";
+
+// Reuse pooled SMTP transporters per credential to avoid repeated handshakes across requests
+const SMTP_POOL = new Map<string, any>();
+const COMMON_TIMEOUTS = { connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 20000 } as const;
+function getPooledTransporter(host: string, port: number, secure: boolean, email: string, appPassword: string) {
+  const key = `${host}:${port}|${email}`;
+  let t = SMTP_POOL.get(key);
+  if (!t) {
+    t = nodemailer.createTransport({ host, port, secure, auth: { user: email, pass: appPassword }, pool: true, maxConnections: 2, maxMessages: 20, ...COMMON_TIMEOUTS });
+    SMTP_POOL.set(key, t);
+  }
+  return t;
+}
 
 async function getSessionUserId(req: Request | NextRequest): Promise<string | null> {
   const cookieHeader = req.headers.get("cookie");
@@ -24,6 +38,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   try {
     const body = await req.json().catch(() => ({}));
     const overrideEmail: string | undefined = body?.toEmail;
+    // Abaikan flag simplePdf dan selalu coba kirim invoice penuh
 
     // Ambil invoice lengkap dan related customer
     const inv = await prisma.invoice.findUnique({ where: { id }, include: { items: true, customer: true } });
@@ -116,14 +131,25 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
 
     // Generate PDF attachment by rendering the print page with Puppeteer
     async function findChromeExecutablePath() {
+      const pf = process.env["ProgramFiles"] || "C:/Program Files";
+      const pfx86 = process.env["ProgramFiles(x86)"] || "C:/Program Files (x86)";
+      const la = process.env.LOCALAPPDATA || "";
       const candidates = [
         process.env.PUPPETEER_EXECUTABLE_PATH,
-        "C:/Program Files/Google/Chrome/Application/chrome.exe",
-        "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
-        "C:/Program Files/Microsoft/Edge/Application/msedge.exe",
-        "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-        path.join(process.env.LOCALAPPDATA || "", "Google/Chrome/Application/chrome.exe"),
-        path.join(process.env.LOCALAPPDATA || "", "Microsoft/Edge/Application/msedge.exe"),
+        `${pf}/Google/Chrome/Application/chrome.exe`,
+        `${pfx86}/Google/Chrome/Application/chrome.exe`,
+        `${pf}/Microsoft/Edge/Application/msedge.exe`,
+        `${pfx86}/Microsoft/Edge/Application/msedge.exe`,
+        `${pf}/BraveSoftware/Brave-Browser/Application/brave.exe`,
+        `${pfx86}/BraveSoftware/Brave-Browser/Application/brave.exe`,
+        path.join(la, "Google/Chrome/Application/chrome.exe"),
+        path.join(la, "Microsoft/Edge/Application/msedge.exe"),
+        path.join(la, "BraveSoftware/Brave-Browser/Application/brave.exe"),
+        // Backslash variants (just in case)
+        "C\\\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+        "C\\\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+        "C\\\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+        "C\\\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
       ].filter(Boolean) as string[];
       for (const p of candidates) {
         try { if (p && fs.existsSync(p)) return p; } catch {}
@@ -131,95 +157,224 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       return null;
     }
 
-    async function generateInvoicePdfWithPuppeteer() {
-      const { default: puppeteer } = await import("puppeteer-core");
-      const executablePath = await findChromeExecutablePath();
-      if (!executablePath) {
-        throw new Error("Chrome/Edge tidak ditemukan. Set PUPPETEER_EXECUTABLE_PATH ke path browser Anda.");
-      }
-      const browser = await puppeteer.launch({ executablePath, headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+    async function launchPuppeteerBrowser() {
+      // Prioritaskan puppeteer-core dengan browser lokal bila tersedia
       try {
-        const page = await browser.newPage();
+        const m2 = await import("puppeteer-core");
+        const puppeteerCore = (m2 as any).default || m2;
+        const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || await findChromeExecutablePath();
+        if (executablePath) {
+          console.info("Meluncurkan puppeteer-core dengan executable:", executablePath);
+          return puppeteerCore.launch({ executablePath, headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] });
+        }
+      } catch {}
+      // Jika browser lokal tidak ditemukan, jatuhkan ke paket puppeteer penuh
+      try {
+        const m = await import("puppeteer");
+        const puppeteer = (m as any).default || m;
+        try {
+          return await puppeteer.launch({ headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"] });
+        } catch (e: any) {
+          console.warn("Puppeteer default Chromium gagal diluncurkan:", e?.message || e);
+          try {
+            return await puppeteer.launch({ channel: "chrome", headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"] });
+          } catch (e2: any) {
+            console.warn("Puppeteer channel=chrome gagal:", e2?.message || e2);
+            try {
+              return await puppeteer.launch({ channel: "msedge", headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"] });
+            } catch (e3: any) {
+              console.warn("Puppeteer channel=msedge gagal:", e3?.message || e3);
+            }
+          }
+        }
+      } catch {}
+      throw new Error("Chrome/Edge tidak ditemukan. Set PUPPETEER_EXECUTABLE_PATH ke path browser Anda.");
+    }
+
+    async function generateInvoicePdfWithPuppeteer() {
+      const tPdfStart = Date.now();
+      const browser = await getBrowser();
+      const page = await browser.newPage();
+      try {
         // Reuse user's session cookie for auth
         const cookieHeader = req.headers.get("cookie");
         const m = cookieHeader?.match(/(?:^|;\s*)session=([^;]+)/);
         const token = m ? decodeURIComponent(m[1]) : null;
+        const origin = (req as any)?.nextUrl?.origin || "http://localhost:3000";
         if (token) {
-          await page.setCookie({ name: "session", value: token, url: "http://localhost:3000" });
+          await page.setCookie({ name: "session", value: token, url: origin });
         }
-        const url = `http://localhost:3000/invoices/${id}/print?pdf=0`;
+        const url = `${origin}/invoices/${id}/print?pdf=0&server=1`;
+        console.info("PDF: membuka", url);
+        const tNavStart = Date.now();
         await page.goto(url, { waitUntil: "domcontentloaded" });
-        // Tunggu AppShell memuat settings dari API (atau lanjut setelah grace period kecil)
+        console.info("Timing: page.goto ms", Date.now() - tNavStart);
+        await page.emulateMediaType("print");
+        // Tunggu halaman benar-benar memuat data invoice: marker siap atau respons API /api/invoices/{id}
+        const tDataWaitStart = Date.now();
         await Promise.race([
-          page.waitForResponse((resp) => resp.url().includes("/api/settings") && resp.status() === 200),
-          new Promise((resolve) => setTimeout(resolve, 1500)),
-        ]);
-        // Pastikan info bank tampil di halaman sebelum cetak (aman terhadap null)
-        const accounts = ((settings?.bankAccounts as any[]) ?? []);
-        const primary = accounts[0] || null;
-        const primaryBankName = (primary?.bankName ?? settings?.bankName ?? "");
-        const primaryAccountNumber = (primary?.accountNumber ?? settings?.bankAccount ?? "");
-        await page.waitForFunction(
-          (bn: string, acc: string) => {
-            const text = document.body.innerText || "";
-            const hasBank = bn ? text.includes(bn) : true;
-            const hasAcc = acc ? text.includes(acc) : true;
-            return hasBank && hasAcc;
-          },
-          { timeout: 5000 },
-          primaryBankName,
-          primaryAccountNumber
-        );
-        // Tunggu elemen utama kertas A4 muncul
-        await page.waitForSelector("div.w-\\[210mm\\]", { timeout: 15000 });
-        const buffer = await page.pdf({ format: "A4", printBackground: true, margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" } });
-        return buffer;
-      } finally {
-        await browser.close();
-      }
-    }
-
-    // Buat transporter dengan fallback: coba 465 (SSL), jika gagal coba 587 (STARTTLS)
-    async function createTransportWithFallback() {
-      // 465: SSL/TLS
-      let t = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: { user: smtpEmail, pass: smtpAppPassword },
-      });
-      try {
-        await t.verify();
-        return t;
-      } catch {
-        // 587: STARTTLS
-        t = nodemailer.createTransport({
-          host: "smtp.gmail.com",
-          port: 587,
-          secure: false,
-          auth: { user: smtpEmail, pass: smtpAppPassword },
+          page.waitForSelector("#print-ready[data-ok='1']", { timeout: 15000 }),
+          page.waitForResponse((res) => {
+            try {
+              const u = new URL(res.url());
+              return u.pathname === `/api/invoices/${id}` && res.status() === 200;
+            } catch { return false; }
+          }, { timeout: 12000 })
+        ]).catch(async () => {
+          // fallback: tunggu kertas A4 muncul
+          await page.waitForSelector("div.w-\\[210mm\\]", { timeout: 5000 }).catch(() => {});
         });
-        await t.verify();
-        return t;
+        console.info("Timing: data ready wait ms", Date.now() - tDataWaitStart);
+        // Pastikan konten invoice sudah ter-render: ada baris item minimal 1
+        await page.waitForFunction(() => {
+          const table = document.querySelector("table");
+          if (!table) return false;
+          const rows = table.querySelectorAll("tbody tr");
+          return rows.length > 0;
+        }, { timeout: 8000 }).catch(() => {});
+        // Tunggu logo bila ada agar image benar-benar loaded, tanpa tidur yang tidak perlu
+        try {
+          const hasLogo = await page.evaluate(() => !!document.querySelector(".h-16 img"));
+          if (hasLogo) {
+            const tLogoWaitStart = Date.now();
+            await page.waitForFunction(() => {
+              const img = document.querySelector(".h-16 img") as HTMLImageElement | null;
+              if (!img) return true; // no logo
+              return img.complete && img.naturalWidth > 0;
+            }, { timeout: 1500 }).catch(() => {});
+            console.info("Timing: logo load wait ms", Date.now() - tLogoWaitStart);
+          }
+        } catch {}
+        let pdfBuffer: Buffer;
+        try {
+          const raw = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+          pdfBuffer = Buffer.isBuffer(raw) ? (raw as Buffer) : Buffer.from(raw as Uint8Array);
+        } catch (err: any) {
+          console.error("PDF: page.pdf error:", err?.message || err);
+          throw err;
+        }
+        console.info("PDF: buffer size", pdfBuffer.length || 0);
+        console.info("Timing: PDF total ms", Date.now() - tPdfStart);
+        return pdfBuffer;
+      } finally {
+        try { await page.close(); } catch {}
       }
     }
 
-    const transporter = await createTransportWithFallback();
+    // Fallback sederhana: render HTML ringkas langsung menjadi PDF bila halaman print gagal
+    async function generateSimpleInvoicePdf(): Promise<Buffer> {
+      const browser = await getBrowser();
+      const page = await browser.newPage();
+      try {
+        const simpleHtml = `<!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <style>
+                @page { size: A4; margin: 0 }
+                body { font-family: Arial, sans-serif; margin: 24px }
+                h1 { font-size: 18px; margin: 0 0 8px }
+                table { border-collapse: collapse; width: 100%; font-size: 12px }
+                th, td { border: 1px solid #ddd; padding: 6px }
+                .right { text-align: right }
+                .mt { margin-top: 12px }
+              </style>
+            </head>
+            <body>
+              <h1>Invoice ${inv.id}</h1>
+              <div>Perusahaan: ${companyName}</div>
+              <div>Pelanggan: ${inv.clientName}</div>
+              <div>Tanggal: ${new Date(inv.date).toLocaleDateString(settings?.language || "id-ID")}</div>
+              <div>Jatuh Tempo: ${dueText}</div>
+              <table class="mt">
+                <thead>
+                  <tr>
+                    <th>Deskripsi</th>
+                    <th class="right">Qty</th>
+                    <th class="right">Harga</th>
+                    <th class="right">Pajak</th>
+                    <th class="right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsRows}
+                </tbody>
+              </table>
+              <div class="right mt"><b>Total</b>: ${totalStr}</div>
+            </body>
+          </html>`;
+        await page.setContent(simpleHtml, { waitUntil: "networkidle0" });
+        await page.emulateMediaType("print");
+        const raw = await page.pdf({ format: "A4", printBackground: true, preferCSSPageSize: true, margin: { top: "0mm", right: "0mm", bottom: "0mm", left: "0mm" } });
+        const pdfBuffer = Buffer.isBuffer(raw) ? (raw as Buffer) : Buffer.from(raw as Uint8Array);
+        console.info("PDF(fallback): buffer size", pdfBuffer.length || 0);
+        return pdfBuffer;
+      } finally {
+        try { await page.close(); } catch {}
+      }
+    }
+
+    // Timeout umum untuk koneksi SMTP agar tidak menggantung
+    // Kirim email dengan fallback: 465 lalu 587, kedua-duanya dibatasi timeout
+    function sendMailWithTimeout(transporter: any, mailOptions: any, ms: number) {
+      return Promise.race([
+        transporter.sendMail(mailOptions),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout saat mengirim email. Cek koneksi SMTP/App Password.")), ms)),
+      ]);
+    }
+
+    async function sendMailWithFallback(mailOptions: any) {
+      // 465 SSL (gunakan pooled transporter untuk mengurangi handshakes berulang)
+      let transporter = getPooledTransporter("smtp.gmail.com", 465, true, smtpEmail, smtpAppPassword);
+      try {
+        await sendMailWithTimeout(transporter, mailOptions, 20000);
+        return;
+      } catch {
+        // 587 STARTTLS
+        transporter = getPooledTransporter("smtp.gmail.com", 587, false, smtpEmail, smtpAppPassword);
+        await sendMailWithTimeout(transporter, mailOptions, 20000);
+      }
+    }
+
     try {
-      const pdfBuffer = await generateInvoicePdfWithPuppeteer();
-      await transporter.sendMail({
+      const origin = (req as any)?.nextUrl?.origin || "http://localhost:3000";
+      let pdfBuffer: Buffer | null = null;
+      const tAllStart = Date.now();
+      try {
+        // Selalu coba buat PDF invoice lengkap
+        pdfBuffer = await generateInvoicePdfWithPuppeteer();
+      } catch (e1: any) {
+        console.error("Gagal membuat PDF invoice via Puppeteer (halaman print):", e1?.message || e1);
+        // Coba fallback sederhana agar tetap ada lampiran PDF
+        try {
+          pdfBuffer = await generateSimpleInvoicePdf();
+        } catch (e2: any) {
+          console.error("Gagal membuat PDF invoice fallback sederhana:", e2?.message || e2);
+          pdfBuffer = null;
+        }
+      }
+      const printLink = `${origin}/invoices/${id}/print?pdf=1`;
+      const htmlWithLink = `${html}<p>Jika lampiran PDF tidak terlihat, unduh invoice melalui tautan: <a href="${printLink}">${printLink}</a></p>`;
+
+      const mailOptions: any = {
         from: `${companyName} <${smtpEmail}>`,
         to: toEmail,
         subject,
-        html,
-        attachments: [
+        html: htmlWithLink,
+      };
+      if (pdfBuffer) {
+        (mailOptions as any).attachments = [
           {
             filename: `Invoice-${inv.id}.pdf`,
             content: pdfBuffer,
             contentType: "application/pdf",
           },
-        ],
-      });
+        ];
+      }
+      const tSendStart = Date.now();
+      await sendMailWithFallback(mailOptions);
+      console.info("Timing: SMTP send ms", Date.now() - tSendStart);
+      console.info("Timing: send-email total ms", Date.now() - tAllStart);
     } catch (err: any) {
       const msg = typeof err?.message === "string" ? err.message : "Gagal mengirim email";
       return NextResponse.json({ error: msg }, { status: 500 });

@@ -14,8 +14,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Avoid reading localStorage/sessionStorage during SSR hydration.
   // Defer settings load to client effect to prevent HTML mismatch.
   const [s, setS] = useState<Required<AppSettings> | null>(null);
+  const isPrintRoute = (pathname?.includes("/invoices/") && pathname?.includes("/print")) ?? false;
 
   useEffect(() => {
+    if (isPrintRoute) return; // Hindari fetch tambahan saat halaman print untuk mengurangi noise jaringan
     (async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
@@ -49,6 +51,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <ToastProvider />
         </div>
       </div>
+    );
+  }
+
+  // Halaman print invoice: render konten minimal tanpa sidebar, header, dan fetch settings
+  if (isPrintRoute) {
+    return (
+      <main className="min-h-screen">
+        <section className="p-0">{children}</section>
+        <ToastProvider />
+      </main>
     );
   }
 
