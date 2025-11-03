@@ -214,7 +214,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         const tDataWaitStart = Date.now();
         await Promise.race([
           page.waitForSelector("#print-ready[data-ok='1']", { timeout: 15000 }),
-          page.waitForResponse((res) => {
+          page.waitForResponse((res: any) => {
             try {
               const u = new URL(res.url());
               return u.pathname === `/api/invoices/${id}` && res.status() === 200;
@@ -281,10 +281,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
               </style>
             </head>
             <body>
-              <h1>Invoice ${inv.id}</h1>
+              <h1>Invoice ${inv!.id}</h1>
               <div>Perusahaan: ${companyName}</div>
-              <div>Pelanggan: ${inv.clientName}</div>
-              <div>Tanggal: ${new Date(inv.date).toLocaleDateString(settings?.language || "id-ID")}</div>
+              <div>Pelanggan: ${inv!.clientName}</div>
+              <div>Tanggal: ${new Date(inv!.date).toLocaleDateString(settings?.language || "id-ID")}</div>
               <div>Jatuh Tempo: ${dueText}</div>
               <table class="mt">
                 <thead>
@@ -365,7 +365,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       if (pdfBuffer) {
         (mailOptions as any).attachments = [
           {
-            filename: `Invoice-${inv.id}.pdf`,
+            filename: `Invoice-${inv!.id}.pdf`,
             content: pdfBuffer,
             contentType: "application/pdf",
           },
