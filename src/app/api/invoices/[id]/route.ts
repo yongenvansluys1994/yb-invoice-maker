@@ -17,7 +17,17 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
   const userId = await getSessionUserId(req);
   if (!userId) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const { id } = await context.params;
-  const inv = await prisma.invoice.findUnique({ where: { id }, include: { items: true } });
+  let inv = await prisma.invoice.findUnique({ where: { id }, include: { items: true } });
+  // Dukung short id di URL: jika tidak ditemukan secara unique, coba cari berdasarkan akhiran "-YYYYMMDD-SEQ" untuk user yang sama
+  if (!inv || inv.userId !== userId) {
+    const m = id.match(/^(\d{8})-(\d+)$/);
+    if (m) {
+      inv = await prisma.invoice.findFirst({
+        where: { userId, id: { endsWith: `-${m[1]}-${m[2]}` } },
+        include: { items: true },
+      });
+    }
+  }
   if (!inv || inv.userId !== userId) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const shaped: Invoice = {
     id: inv.id,
@@ -54,12 +64,19 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     ? subtotalBase + Math.round(subtotalBase * (ppnRate / 100)) - Math.round(subtotalBase * (pphRate / 100))
     : undefined;
 
-  const existing = await prisma.invoice.findUnique({ where: { id } });
+  // Temukan invoice baik dengan full id maupun short id
+  let existing = await prisma.invoice.findUnique({ where: { id } });
+  if (!existing || existing.userId !== userId) {
+    const m = id.match(/^(\d{8})-(\d+)$/);
+    if (m) {
+      existing = await prisma.invoice.findFirst({ where: { userId, id: { endsWith: `-${m[1]}-${m[2]}` } } });
+    }
+  }
   if (!existing || existing.userId !== userId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
   await prisma.invoice.update({
-    where: { id },
+    where: { id: existing.id },
     data: {
       clientName: body.clientName ?? undefined,
       date: body.date ?? undefined,
@@ -72,11 +89,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   });
 
   if (itemsWithAmount) {
-    await prisma.invoiceItem.deleteMany({ where: { invoiceId: id } });
+    await prisma.invoiceItem.deleteMany({ where: { invoiceId: existing.id } });
     for (const it of itemsWithAmount) {
       await prisma.invoiceItem.create({
         data: {
-          invoiceId: id,
+          invoiceId: existing.id,
           description: it.description,
           unitPrice: it.unitPrice,
           quantity: it.quantity,
@@ -87,7 +104,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     }
   }
 
-  const final = await prisma.invoice.findUnique({ where: { id }, include: { items: true } });
+  const final = await prisma.invoice.findUnique({ where: { id: existing.id }, include: { items: true } });
   if (!final || final.userId !== userId) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const shaped: Invoice = {
     id: final.id,
@@ -108,11 +125,18 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
   if (!userId) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const { id } = await context.params;
   try {
-    const existing = await prisma.invoice.findUnique({ where: { id } });
+    // Temukan invoice baik dengan full id maupun short id
+    let existing = await prisma.invoice.findUnique({ where: { id } });
+    if (!existing || existing.userId !== userId) {
+      const m = id.match(/^(\d{8})-(\d+)$/);
+      if (m) {
+        existing = await prisma.invoice.findFirst({ where: { userId, id: { endsWith: `-${m[1]}-${m[2]}` } } });
+      }
+    }
     if (!existing || existing.userId !== userId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    await prisma.invoice.delete({ where: { id } });
+    await prisma.invoice.delete({ where: { id: existing.id } });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });

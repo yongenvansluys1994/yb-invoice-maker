@@ -40,8 +40,14 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const overrideEmail: string | undefined = body?.toEmail;
     // Abaikan flag simplePdf dan selalu coba kirim invoice penuh
 
-    // Ambil invoice lengkap dan related customer
-    const inv = await prisma.invoice.findUnique({ where: { id }, include: { items: true, customer: true } });
+    // Ambil invoice lengkap dan related customer, dukung short id jika perlu
+    let inv = await prisma.invoice.findUnique({ where: { id }, include: { items: true, customer: true } });
+    if (!inv || inv.userId !== userId) {
+      const m = id.match(/^(\d{8})-(\d+)$/);
+      if (m) {
+        inv = await prisma.invoice.findFirst({ where: { userId, id: { endsWith: `-${m[1]}-${m[2]}` } }, include: { items: true, customer: true } });
+      }
+    }
     if (!inv || inv.userId !== userId) return NextResponse.json({ error: "Invoice tidak ditemukan" }, { status: 404 });
 
     // Ambil pengaturan termasuk kredensial SMTP

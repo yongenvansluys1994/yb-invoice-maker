@@ -187,8 +187,14 @@ export default function InvoicesPage() {
                       {openMenuId === inv.id ? (
                         <div className="absolute right-0 z-10 mt-1 w-44 rounded-lg border border-black/10 bg-white shadow-lg">
                           <div className="py-1 text-sm">
-                            <Link
-                              href={`/invoices/${inv.id}`}
+                            {/** Gunakan short id di URL agar tidak menampilkan format/prefix */}
+                            {(() => {
+                              const m = (inv.id || "").match(/(\d{8})-(\d+)$/);
+                              const shortId = m ? `${m[1]}-${m[2]}` : inv.id;
+                              return (
+                                <>
+                                <Link
+                              href={`/invoices/${shortId}`}
                               className="flex items-center gap-2 px-3 py-2 hover:bg-black/5"
                               onClick={() => setOpenMenuId(null)}
                             >
@@ -197,7 +203,7 @@ export default function InvoicesPage() {
                             </Link>
                           <button
                             className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-black/5"
-                            onClick={() => { setOpenMenuId(null); try { window.open(`/invoices/${inv.id}/print`, "_blank"); } catch {} }}
+                            onClick={() => { setOpenMenuId(null); try { window.open(`/invoices/${shortId}/print`, "_blank"); } catch {} }}
                           >
                             <Printer className="h-4 w-4" />
                             Cetak
@@ -205,7 +211,7 @@ export default function InvoicesPage() {
                           {inv.status === "lunas" ? (
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-black/5"
-                              onClick={() => { setOpenMenuId(null); try { window.open(`/invoices/${inv.id}/receipt`, "_blank"); } catch {} }}
+                              onClick={() => { setOpenMenuId(null); try { window.open(`/invoices/${shortId}/receipt`, "_blank"); } catch {} }}
                             >
                               <Receipt className="h-4 w-4" />
                               Cetak Kwitansi
@@ -213,11 +219,14 @@ export default function InvoicesPage() {
                           ) : null}
                           <button
                             className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-black/5"
-                            onClick={() => { setOpenMenuId(null); try { window.open(`/invoices/${inv.id}/print?pdf=1`, "_blank"); } catch {} }}
+                            onClick={() => { setOpenMenuId(null); try { window.open(`/invoices/${shortId}/print?pdf=1`, "_blank"); } catch {} }}
                           >
                             <Download className="h-4 w-4" />
                             PDF
                             </button>
+                                </>
+                              );
+                            })()}
                             <button
                               className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-black/5 disabled:opacity-50"
                               onClick={() => { setOpenMenuId(null); removeInvoice(inv.id); }}
