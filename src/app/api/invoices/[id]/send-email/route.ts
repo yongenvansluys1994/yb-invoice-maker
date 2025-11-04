@@ -101,9 +101,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       return `<p>Hormat kami,<br><b>${owner}</b>${title ? `<br>${title}` : ""}</p>`;
     })();
 
-    // Display ID menggunakan prefix dari pengaturan agar dapat menampilkan karakter "/" secara aman
+    // Gunakan nomor tampilan dengan prefix dari pengaturan agar cocok dengan dokumen cetak
     const prefixDisplay = (settings?.invoicePrefix || "INV").trim();
-    const mId = inv.id.match(/^(.+)-(\d{8})-(\d+)$/);
+    const mId = String(inv.id || "").match(/^(.+)-(\d{8})-(\d+)$/);
     const dateKey = mId?.[2] || "";
     const seqStr = mId?.[3] || "";
     const displayId = dateKey && seqStr ? `${prefixDisplay}-${dateKey}-${seqStr}` : `${prefixDisplay}-${inv.id}`;

@@ -24,7 +24,7 @@ export default function PrintInvoicePage() {
   const displayId = useMemo(() => {
     if (!invoice) return "";
     try {
-      const m = invoice.id.match(/^(.+)-(\d{8})-(\d+)$/);
+      const m = String(invoice.id || "").match(/^(.+)-(\d{8})-(\d+)$/);
       const dateKey = m?.[2] || "";
       const seqStr = m?.[3] || "";
       const prefix = (s.invoicePrefix || "INV").trim();

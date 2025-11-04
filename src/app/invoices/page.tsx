@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { Invoice } from "@/types/invoice";
 import SoftCard from "@/components/SoftCard";
 import { Eye, Download, Filter, Plus, Search, Loader2, ChevronLeft, ChevronRight, Trash2, MoreHorizontal, Printer, Receipt } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/settings";
+import { formatCurrency, formatDate, getSettings } from "@/lib/settings";
 import { toast } from "@/lib/toast";
 
 function addDays(iso: string, days: number) {
@@ -69,6 +69,8 @@ export default function InvoicesPage() {
       }
     })();
   }, []);
+
+  const s = useMemo(() => getSettings(), []);
 
   const filtered = useMemo(() => {
     const byQuery = list.filter((i) => {
@@ -160,9 +162,15 @@ export default function InvoicesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-black/10">
-              {paginated.map((inv) => (
+              {paginated.map((inv) => {
+                const m = String(inv.id || "").match(/^(.+)-(\d{8})-(\d+)$/);
+                const dateKey = m?.[2] || "";
+                const seqStr = m?.[3] || "";
+                const prefixDisplay = (s.invoicePrefix || "INV").trim();
+                const displayId = dateKey && seqStr ? `${prefixDisplay}-${dateKey}-${seqStr}` : `${prefixDisplay}-${inv.id}`;
+                return (
                 <tr key={inv.id}>
-                  <td className="px-3 py-3 font-medium">{inv.id}</td>
+                  <td className="px-3 py-3 font-medium">{displayId}</td>
                   <td className="px-3 py-3">{inv.clientName}</td>
                   <td className="px-3 py-3">{mounted ? formatDate(inv.date) : inv.date}</td>
                   <td className="px-3 py-3">{mounted ? formatDate(inv.dueDate) : inv.dueDate}</td>
@@ -241,7 +249,8 @@ export default function InvoicesPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-3 py-3 text-center text-black/60">Tidak ada invoice sesuai filter.</td>
