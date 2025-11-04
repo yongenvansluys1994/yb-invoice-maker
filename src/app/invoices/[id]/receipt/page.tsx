@@ -19,6 +19,16 @@ export default function PrintReceiptPage() {
   const [ready, setReady] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
   const s = useMemo(() => getSettings(), []);
+  const displayId = useMemo(() => {
+    if (!invoice) return "";
+    try {
+      const m = invoice.id.match(/^(.+)-(\d{8})-(\d+)$/);
+      const dateKey = m?.[2] || "";
+      const seqStr = m?.[3] || "";
+      const prefix = (s.invoicePrefix || "INV").trim();
+      return dateKey && seqStr ? `${prefix}-${dateKey}-${seqStr}` : `${prefix}-${invoice.id}`;
+    } catch { return invoice.id; }
+  }, [invoice, s.invoicePrefix]);
 
   useEffect(() => {
     (async () => {
@@ -117,7 +127,7 @@ export default function PrintReceiptPage() {
             </div>
             <div className="ml-auto text-right">
               <div className="text-3xl font-bold tracking-wide">KWITANSI</div>
-              <div className="mt-2">No: {invoice.id}</div>
+              <div className="mt-2">No: {displayId || invoice.id}</div>
               <div>Tanggal: {formatDate(invoice.date)}</div>
               {s.npwp ? <div className="text-black/70 mt-1">NPWP: {s.npwp}</div> : null}
             </div>
@@ -129,7 +139,7 @@ export default function PrintReceiptPage() {
           <div className="rounded-lg border border-black/10 p-4 bg-black/5 print:bg-transparent">
             <div className="mb-2">Telah diterima dari: <span className="font-semibold">{invoice.clientName}</span></div>
             <div className="mb-2">Sejumlah: <span className="font-semibold">{formatCurrency(paidTotal)}</span></div>
-            <div className="mb-2">Untuk pembayaran invoice <span className="font-semibold">{invoice.id}</span></div>
+            <div className="mb-2">Untuk pembayaran invoice <span className="font-semibold">{displayId || invoice.id}</span></div>
           </div>
         </div>
 

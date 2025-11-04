@@ -91,7 +91,7 @@ export default function SettingsPage() {
 
         // Selalu ambil dari lokal/default untuk bidang yang dikecualikan dari DB
         const localDefaults = loadSettings();
-        const excludedKeys: (keyof AppSettings)[] = ["currency", "language", "themeKey", "invoicePrefix", "defaultTaxRate"];
+        const excludedKeys: (keyof AppSettings)[] = ["currency", "language", "themeKey", "defaultTaxRate"];
         // Sertakan defaultPphRate agar tetap konsisten dari lokal jika server kosong
         excludedKeys.push("defaultPphRate");
         excludedKeys.forEach((k) => {

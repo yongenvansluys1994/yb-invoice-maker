@@ -95,13 +95,19 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       return `<p>Hormat kami,<br><b>${owner}</b>${title ? `<br>${title}` : ""}</p>`;
     })();
 
-    const subject = `Invoice ${inv.id} dari ${companyName}`;
+    // Display ID menggunakan prefix dari pengaturan agar dapat menampilkan karakter "/" secara aman
+    const prefixDisplay = (settings?.invoicePrefix || "INV").trim();
+    const mId = inv.id.match(/^(.+)-(\d{8})-(\d+)$/);
+    const dateKey = mId?.[2] || "";
+    const seqStr = mId?.[3] || "";
+    const displayId = dateKey && seqStr ? `${prefixDisplay}-${dateKey}-${seqStr}` : `${prefixDisplay}-${inv.id}`;
+    const subject = `Invoice ${displayId} dari ${companyName}`;
     const html = `
       <div style="font-family:Arial,sans-serif;">
         <p>Halo ${inv.clientName},</p>
         <p>Berikut kami kirimkan invoice Anda:</p>
         <table style="border-collapse:collapse;margin-top:8px;margin-bottom:12px">
-          <tr><td><b>No. Invoice</b></td><td style="padding-left:8px">${inv.id}</td></tr>
+          <tr><td><b>No. Invoice</b></td><td style="padding-left:8px">${displayId}</td></tr>
           <tr><td><b>Tanggal</b></td><td style="padding-left:8px">${new Date(inv.date).toLocaleDateString(settings?.language || "id-ID")}</td></tr>
           <tr><td><b>Jatuh Tempo</b></td><td style="padding-left:8px">${dueText}</td></tr>
           <tr><td><b>Status</b></td><td style="padding-left:8px">${inv.status}</td></tr>
@@ -363,9 +369,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
         html: htmlWithLink,
       };
       if (pdfBuffer) {
+        const safeIdForFilename = (inv!.id || "").replace(/[\\/]/g, "-");
         (mailOptions as any).attachments = [
           {
-            filename: `Invoice-${inv!.id}.pdf`,
+            filename: `Invoice-${safeIdForFilename}.pdf`,
             content: pdfBuffer,
             contentType: "application/pdf",
           },

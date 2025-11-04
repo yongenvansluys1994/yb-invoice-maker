@@ -19,7 +19,10 @@ export async function GET(req: NextRequest) {
   const date = sp.get("date") || new Date().toISOString().slice(0, 10);
   const dateKey = date.replaceAll("-", "");
   const settings = await prisma.settings.findUnique({ where: { userId } });
-  const prefix = settings?.invoicePrefix || "INV";
+  const rawPrefix = (settings?.invoicePrefix || "INV").trim();
+  // Sanitasi prefix agar aman dipakai sebagai bagian dari URL dan primary key
+  // Ganti karakter pemisah path ("/" dan "\\") menjadi "-"
+  const prefix = rawPrefix.replace(/[\/\\]/g, "-");
 
   const likePrefix = `${prefix}-${dateKey}-`;
   // Cari semua invoice dengan prefix & tanggal yang sama secara global untuk menghindari bentrok antar user

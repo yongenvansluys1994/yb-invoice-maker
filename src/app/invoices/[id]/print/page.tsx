@@ -21,6 +21,16 @@ export default function PrintInvoicePage() {
   const sheetRef = useRef<HTMLDivElement>(null);
   // Muat settings dari server agar logo, pemilik, jabatan, dan rekening tampil saat dicetak via Puppeteer
   const [s, setS] = useState(getSettings());
+  const displayId = useMemo(() => {
+    if (!invoice) return "";
+    try {
+      const m = invoice.id.match(/^(.+)-(\d{8})-(\d+)$/);
+      const dateKey = m?.[2] || "";
+      const seqStr = m?.[3] || "";
+      const prefix = (s.invoicePrefix || "INV").trim();
+      return dateKey && seqStr ? `${prefix}-${dateKey}-${seqStr}` : `${prefix}-${invoice.id}`;
+    } catch { return invoice.id; }
+  }, [invoice, s.invoicePrefix]);
 
   useEffect(() => {
     (async () => {
@@ -145,7 +155,7 @@ export default function PrintInvoicePage() {
             </div>
             <div className="ml-auto text-right">
               <div className="text-3xl font-bold tracking-wide">INVOICE</div>
-              <div className="mt-2">No: {invoice.id}</div>
+              <div className="mt-2">No: {displayId || invoice.id}</div>
               <div>Tanggal: {formatDate(invoice.date)}</div>
               {invoice.dueDate ? <div>Jatuh Tempo: {formatDate(invoice.dueDate)}</div> : null}
               {s.npwp ? <div className="text-black/70 mt-1">NPWP: {s.npwp}</div> : null}
