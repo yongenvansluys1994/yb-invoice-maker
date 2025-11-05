@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
+
+// Pastikan route ini menggunakan Node.js runtime (bukan Edge)
+export const runtime = "nodejs";
 
 const SESSION_COOKIE = "session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 hari
@@ -21,7 +25,7 @@ export async function POST(req: Request) {
     const ok = await bcrypt.compare(password, user.passwordHash);
     if (!ok) return NextResponse.json({ error: "Password salah" }, { status: 401 });
 
-    const token = crypto.randomUUID();
+    const token = randomUUID();
     const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000);
     await prisma.session.create({ data: { userId: user.id, token, expiresAt } });
 
