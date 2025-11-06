@@ -73,10 +73,12 @@ function applyTheme(key: string) {
 export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
   const [saving, setSaving] = useState(false);
+  const [loadingServer, setLoadingServer] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
+        setLoadingServer(true);
         const server = await fetchSettings();
         // Gabungkan beberapa field dari lokal jika server kosong (untuk menjaga nilai yang pernah disimpan lokal)
         const localRaw = localStorage.getItem("invgenz:settings") || "{}";
@@ -112,11 +114,13 @@ export default function SettingsPage() {
             localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
           } catch {}
         applyTheme(String(next.themeKey || "pastel1"));
+        setLoadingServer(false);
       } catch {
         // fallback ke local
         const next = loadSettings();
         setSettings(next);
         applyTheme(String(next.themeKey || "pastel1"));
+        setLoadingServer(false);
       }
     })();
   }, []);
@@ -193,6 +197,14 @@ export default function SettingsPage() {
 
   return (
     <div className="grid gap-6">
+      {loadingServer ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-white/60 backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white px-4 py-3 shadow">
+            <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
+            <span className="text-sm text-black/70">Memuat pengaturan…</span>
+          </div>
+        </div>
+      ) : null}
       <div>
         <h2 className="text-2xl font-semibold">Pengaturan</h2>
         <p className="text-sm text-black/60">Kelola pengaturan global aplikasi</p>
