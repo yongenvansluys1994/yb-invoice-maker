@@ -152,7 +152,7 @@ export default function SettingsPage() {
       
       // Untuk Railway: Logo > 500KB tidak dikirim ke server (hanya simpan lokal)
       const skipLogoToServer = toSave.logoUrl && toSave.logoUrl.length > MAX_LOGO_SERVER;
-      if (skipLogoToServer) {
+      if (skipLogoToServer && toSave.logoUrl) {
         const logoSizeKB = (toSave.logoUrl.length / 1024).toFixed(0);
         console.warn(`[SETTINGS SAVE] Logo ${logoSizeKB}KB > 500KB, will skip sending to server (Railway limitation)`);
       }
@@ -405,7 +405,7 @@ export default function SettingsPage() {
             ) : (
               <div className="text-xs text-black/50 mt-1">
                 Unggah file gambar (PNG/JPG/SVG). <strong>Rekomendasi: max 300-400KB</strong> agar bisa disimpan di server.
-                <br />Logo > 500KB hanya tersimpan lokal (limitasi Railway).
+                <br />Logo {'>'}  500KB hanya tersimpan lokal (limitasi Railway).
               </div>
             )}
           </div>
