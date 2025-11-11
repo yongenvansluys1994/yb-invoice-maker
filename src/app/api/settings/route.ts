@@ -1,14 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
-// Configure API route
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb', // Increase body size limit untuk logo upload
-    },
-  },
-};
+// Next.js App Router tidak support bodyParser config
+// Body size limit di-handle secara manual di handler
 
 async function getSessionUserId(req: Request): Promise<string | null> {
   const cookieHeader = req.headers.get("cookie");
@@ -78,36 +72,81 @@ export async function PATCH(req: Request) {
       );
     }
     
-    // Parse request body
+    // Parse request body with comprehensive error handling
     let body;
     try {
       // Check content length first
       const contentLength = req.headers.get('content-length');
-      console.log('[SETTINGS] Content-Length:', contentLength);
+      const contentLengthNum = contentLength ? parseInt(contentLength) : 0;
+      console.log('[SETTINGS] Content-Length:', contentLength, 'bytes');
       
-      body = await req.json();
-      
-      // Log payload size (without logoUrl to avoid massive logs)
-      const bodySize = JSON.stringify(body).length;
-      console.log('[SETTINGS] Body size:', bodySize, 'bytes');
-      
-      // Check if logoUrl is too large
-      if (body.logoUrl && body.logoUrl.length > 5 * 1024 * 1024) {
-        console.warn('[SETTINGS] Logo too large:', body.logoUrl.length, 'bytes');
+      // Check if request body is too large (10MB limit)
+      const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+      if (contentLengthNum > MAX_SIZE) {
+        console.error('[SETTINGS] Request too large:', contentLengthNum, 'bytes');
         return NextResponse.json(
-          { error: "Logo terlalu besar. Maksimal 5MB." },
+          { error: `Request terlalu besar (${(contentLengthNum / 1024 / 1024).toFixed(2)}MB). Maksimal 10MB.` },
           { status: 413 }
         );
       }
+      
+      // Try to read and parse body
+      let bodyText: string;
+      try {
+        bodyText = await req.text();
+        console.log('[SETTINGS] Body text length:', bodyText.length, 'bytes');
+      } catch (readError: any) {
+        console.error('[SETTINGS] Error reading body:', readError.message);
+        return NextResponse.json(
+          { error: 'Gagal membaca request body' },
+          { status: 400 }
+        );
+      }
+      
+      // Try to parse as JSON
+      try {
+        body = JSON.parse(bodyText);
+        console.log('[SETTINGS] Body parsed successfully, keys:', Object.keys(body).join(', '));
+      } catch (jsonError: any) {
+        console.error('[SETTINGS] JSON parse error:', {
+          message: jsonError.message,
+          position: jsonError.message.match(/position (\d+)/)?.[1],
+          bodyPreview: bodyText.substring(0, 100)
+        });
+        return NextResponse.json(
+          { error: 'Data JSON tidak valid' },
+          { status: 400 }
+        );
+      }
+      
+      // Validate body structure
+      if (!body || typeof body !== 'object') {
+        console.error('[SETTINGS] Body is not an object:', typeof body);
+        return NextResponse.json(
+          { error: 'Format data tidak valid' },
+          { status: 400 }
+        );
+      }
+      
+      // Check if logoUrl is too large
+      if (body.logoUrl && typeof body.logoUrl === 'string' && body.logoUrl.length > 5 * 1024 * 1024) {
+        console.warn('[SETTINGS] Logo too large:', body.logoUrl.length, 'bytes');
+        return NextResponse.json(
+          { error: `Logo terlalu besar (${(body.logoUrl.length / 1024 / 1024).toFixed(2)}MB). Maksimal 5MB.` },
+          { status: 413 }
+        );
+      }
+      
+      console.log('[SETTINGS] Validation passed, proceeding to upsert');
     } catch (parseError: any) {
-      console.error("[BODY PARSE ERROR]", {
+      console.error("[BODY PARSE ERROR OUTER]", {
         message: parseError.message,
         name: parseError.name,
-        stack: parseError.stack?.substring(0, 200)
+        stack: parseError.stack?.substring(0, 300)
       });
       return NextResponse.json(
-        { error: `Gagal parsing request: ${parseError.message}` },
-        { status: 400 }
+        { error: `Error tidak terduga: ${parseError.message}` },
+        { status: 500 }
       );
     }
     
