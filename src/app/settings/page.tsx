@@ -143,46 +143,98 @@ export default function SettingsPage() {
         return;
       }
       
+      // Untuk Railway: Cek apakah logo menyebabkan masalah, skip jika perlu
+      // Logo disimpan di localStorage saja, tidak ke server jika > 1MB untuk avoid Railway limits
+      const skipLogoToServer = toSave.logoUrl && toSave.logoUrl.length > 1 * 1024 * 1024;
+      if (skipLogoToServer) {
+        console.warn('[SETTINGS SAVE] Logo > 1MB, will skip sending to server (Railway limitation)');
+      }
+      
       // Pastikan field legacy ikut tersimpan dari akun pertama
       if ((toSave.bankAccounts?.length || 0) > 0) {
         toSave.bankName = toSave.bankAccounts![0].bankName;
         toSave.bankAccount = toSave.bankAccounts![0].accountNumber;
       }
 
+      // Sanitize function untuk membersihkan string dari karakter yang bisa corrupt JSON
+      const sanitize = (str: string | undefined): string => {
+        if (!str) return "";
+        // Trim dan pastikan string valid
+        return String(str).trim();
+      };
+
       // Simpan ke server untuk semua field inti termasuk owner, daftar rekening, dan logo
       const payload = {
-        companyName: toSave.companyName || "YB Invoice Maker",
-        logoUrl: toSave.logoUrl || "",
-        bankName: toSave.bankName || "Bank BCA",
-        bankAccount: toSave.bankAccount || "1234567890",
-        address: toSave.address || "",
-        npwp: toSave.npwp || "",
-        invoicePrefix: toSave.invoicePrefix || "INV",
+        companyName: sanitize(toSave.companyName) || "YB Invoice Maker",
+        logoUrl: skipLogoToServer ? "" : (toSave.logoUrl || ""),
+        bankName: sanitize(toSave.bankName) || "Bank BCA",
+        bankAccount: sanitize(toSave.bankAccount) || "1234567890",
+        address: sanitize(toSave.address) || "",
+        npwp: sanitize(toSave.npwp) || "",
+        invoicePrefix: sanitize(toSave.invoicePrefix) || "INV",
         defaultTaxRate: typeof toSave.defaultTaxRate === "number" ? toSave.defaultTaxRate : 11,
         defaultPphRate: typeof toSave.defaultPphRate === "number" ? toSave.defaultPphRate : 1.5,
-        currency: toSave.currency || "IDR",
-        language: toSave.language || "id-ID",
-        themeKey: toSave.themeKey || "pastel1",
-        ownerName: toSave.ownerName || "",
-        ownerTitle: toSave.ownerTitle || "",
-        smtpEmail: toSave.smtpEmail || "",
-        smtpAppPassword: toSave.smtpAppPassword || "",
-        bankAccounts: (toSave.bankAccounts || []).map(a => ({ bankName: a.bankName, accountNumber: a.accountNumber, alias: a.alias || undefined })),
+        currency: sanitize(toSave.currency) || "IDR",
+        language: sanitize(toSave.language) || "id-ID",
+        themeKey: sanitize(toSave.themeKey) || "pastel1",
+        ownerName: sanitize(toSave.ownerName) || "",
+        ownerTitle: sanitize(toSave.ownerTitle) || "",
+        smtpEmail: sanitize(toSave.smtpEmail) || "",
+        smtpAppPassword: sanitize(toSave.smtpAppPassword) || "",
+        bankAccounts: (toSave.bankAccounts || []).map(a => ({
+          bankName: sanitize(a.bankName),
+          accountNumber: sanitize(a.accountNumber),
+          alias: a.alias ? sanitize(a.alias) : undefined
+        })),
       };
 
       // Debug: Log payload size
-      const payloadStr = JSON.stringify(payload);
+      let payloadStr: string;
+      try {
+        payloadStr = JSON.stringify(payload);
+      } catch (stringifyError: any) {
+        console.error('[SETTINGS SAVE] Failed to stringify payload:', stringifyError.message);
+        toast.error("Gagal memproses data. Coba hapus logo atau cek karakter special.");
+        setSaving(false);
+        return;
+      }
+      
       const payloadSize = payloadStr.length;
       console.log('[SETTINGS SAVE] Payload size:', payloadSize, 'bytes', '~', (payloadSize / 1024).toFixed(2), 'KB');
       if (payload.logoUrl) {
         console.log('[SETTINGS SAVE] Logo size:', payload.logoUrl.length, 'bytes');
       }
 
-      const res = await fetch("/api/settings", {
+      let res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: payloadStr,
       });
+      
+      // Jika gagal dengan JSON error dan ada logo, coba kirim tanpa logo
+      if (!res.ok && payload.logoUrl) {
+        const contentType = res.headers.get("content-type");
+        if (contentType?.includes("application/json")) {
+          const errData = await res.json();
+          if (errData.error?.includes("JSON") || errData.error?.includes("tidak valid")) {
+            console.warn('[SETTINGS SAVE] JSON error detected, retrying without logo...');
+            toast.info("Mencoba simpan tanpa logo...");
+            
+            const payloadWithoutLogo = { ...payload, logoUrl: "" };
+            res = await fetch("/api/settings", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payloadWithoutLogo),
+            });
+            
+            if (res.ok) {
+              toast.warning("Pengaturan tersimpan, tapi logo gagal disimpan. Gunakan gambar lebih kecil.");
+              // Reset logo di state
+              setSettings({ ...settings, logoUrl: "" });
+            }
+          }
+        }
+      }
 
       if (!res.ok) {
         // Ambil pesan error dari server
@@ -239,7 +291,12 @@ export default function SettingsPage() {
       } catch {}
 
       applyTheme(settings.themeKey || "pastel1");
-      toast.success("Pengaturan berhasil disimpan");
+      
+      if (skipLogoToServer) {
+        toast.success("Pengaturan berhasil disimpan. Logo hanya tersimpan lokal (terlalu besar untuk server).");
+      } else {
+        toast.success("Pengaturan berhasil disimpan");
+      }
     } catch (err) {
       // Network error atau error lainnya
       console.error("Save settings error:", err);
