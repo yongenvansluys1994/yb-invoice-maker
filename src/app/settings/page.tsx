@@ -135,6 +135,14 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const toSave = { ...settings };
+      
+      // Validasi ukuran logo sebelum dikirim
+      if (toSave.logoUrl && toSave.logoUrl.length > 5 * 1024 * 1024) {
+        toast.error("Logo terlalu besar. Maksimal 5MB. Silakan kompres atau gunakan gambar lebih kecil.");
+        setSaving(false);
+        return;
+      }
+      
       // Pastikan field legacy ikut tersimpan dari akun pertama
       if ((toSave.bankAccounts?.length || 0) > 0) {
         toSave.bankName = toSave.bankAccounts![0].bankName;
@@ -162,10 +170,18 @@ export default function SettingsPage() {
         bankAccounts: (toSave.bankAccounts || []).map(a => ({ bankName: a.bankName, accountNumber: a.accountNumber, alias: a.alias || undefined })),
       };
 
+      // Debug: Log payload size
+      const payloadStr = JSON.stringify(payload);
+      const payloadSize = payloadStr.length;
+      console.log('[SETTINGS SAVE] Payload size:', payloadSize, 'bytes', '~', (payloadSize / 1024).toFixed(2), 'KB');
+      if (payload.logoUrl) {
+        console.log('[SETTINGS SAVE] Logo size:', payload.logoUrl.length, 'bytes');
+      }
+
       const res = await fetch("/api/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: payloadStr,
       });
 
       if (!res.ok) {

@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Configure API route
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb', // Increase body size limit untuk logo upload
+    },
+  },
+};
+
 async function getSessionUserId(req: Request): Promise<string | null> {
   const cookieHeader = req.headers.get("cookie");
   if (!cookieHeader) return null;
@@ -72,11 +81,32 @@ export async function PATCH(req: Request) {
     // Parse request body
     let body;
     try {
+      // Check content length first
+      const contentLength = req.headers.get('content-length');
+      console.log('[SETTINGS] Content-Length:', contentLength);
+      
       body = await req.json();
+      
+      // Log payload size (without logoUrl to avoid massive logs)
+      const bodySize = JSON.stringify(body).length;
+      console.log('[SETTINGS] Body size:', bodySize, 'bytes');
+      
+      // Check if logoUrl is too large
+      if (body.logoUrl && body.logoUrl.length > 5 * 1024 * 1024) {
+        console.warn('[SETTINGS] Logo too large:', body.logoUrl.length, 'bytes');
+        return NextResponse.json(
+          { error: "Logo terlalu besar. Maksimal 5MB." },
+          { status: 413 }
+        );
+      }
     } catch (parseError: any) {
-      console.error("[BODY PARSE ERROR]", parseError);
+      console.error("[BODY PARSE ERROR]", {
+        message: parseError.message,
+        name: parseError.name,
+        stack: parseError.stack?.substring(0, 200)
+      });
       return NextResponse.json(
-        { error: "Data request tidak valid" },
+        { error: `Gagal parsing request: ${parseError.message}` },
         { status: 400 }
       );
     }
