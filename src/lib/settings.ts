@@ -120,10 +120,29 @@ export async function fetchSettings(): Promise<Required<AppSettings>> {
     const res = await fetch("/api/settings", { cache: "no-store" });
     const data = await res.json();
     const merged = { ...defaults, ...(data || {}) } as Required<AppSettings>;
+    
+    // PENTING: Merge logo dari localStorage (karena logo > 500KB tidak tersimpan di server)
     try {
       const uid = currentUid();
+      const localRaw = localStorage.getItem(`invgenz:${uid}:settings`) || "{}";
+      const local = JSON.parse(localRaw) as AppSettings;
+      
+      // Logo SELALU dari localStorage jika ada
+      if (local.logoUrl) {
+        merged.logoUrl = local.logoUrl as any;
+      }
+      
+      // Field regional lainnya juga dari lokal
+      if (local.currency) merged.currency = local.currency as any;
+      if (local.language) merged.language = local.language as any;
+      if (local.themeKey) merged.themeKey = local.themeKey as any;
+      if (typeof local.defaultTaxRate === "number") merged.defaultTaxRate = local.defaultTaxRate as any;
+      if (typeof local.defaultPphRate === "number") merged.defaultPphRate = local.defaultPphRate as any;
+      if (local.invoicePrefix) merged.invoicePrefix = local.invoicePrefix as any;
+      
       sessionStorage.setItem(`invgenz:${uid}:settings:server`, JSON.stringify(merged));
     } catch {}
+    
     return merged;
   } catch {
     return getSettings();
