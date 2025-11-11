@@ -172,15 +172,40 @@ export default function SettingsPage() {
         // Ambil pesan error dari server
         let errorMsg = "Gagal menyimpan ke server";
         try {
-          const errData = await res.json();
-          if (errData.error) {
-            errorMsg = `Gagal: ${errData.error}`;
+          const contentType = res.headers.get("content-type");
+          if (contentType?.includes("application/json")) {
+            const errData = await res.json();
+            if (errData.error) {
+              errorMsg = errData.error;
+            } else {
+              errorMsg = `Error ${res.status}: ${res.statusText}`;
+            }
+          } else {
+            // Response bukan JSON (mungkin HTML error page)
+            const text = await res.text();
+            console.error("Non-JSON response:", text);
+            errorMsg = `Error ${res.status}: Server mengembalikan response yang tidak valid`;
           }
-        } catch {
-          errorMsg = `Gagal: ${res.status} ${res.statusText}`;
+        } catch (e) {
+          console.error("Error parsing response:", e);
+          errorMsg = `Error ${res.status}: ${res.statusText}`;
         }
         toast.error(errorMsg);
         return;
+      }
+
+      // Parse response dengan safety check
+      let savedData;
+      try {
+        const contentType = res.headers.get("content-type");
+        if (contentType?.includes("application/json")) {
+          savedData = await res.json();
+        } else {
+          console.warn("Success response is not JSON");
+        }
+      } catch (e) {
+        console.error("Error parsing success response:", e);
+        // Tetap lanjut karena operasi mungkin berhasil di server
       }
 
       // Jika berhasil simpan ke server, baru simpan ke localStorage untuk field tertentu
@@ -201,8 +226,16 @@ export default function SettingsPage() {
       toast.success("Pengaturan berhasil disimpan");
     } catch (err) {
       // Network error atau error lainnya
-      const errorMsg = err instanceof Error ? err.message : "Terjadi kesalahan";
-      toast.error(`Gagal menyimpan: ${errorMsg}`);
+      console.error("Save settings error:", err);
+      let errorMsg = "Terjadi kesalahan tidak terduga";
+      if (err instanceof Error) {
+        errorMsg = err.message;
+        // Jika error JSON parsing, berikan pesan yang lebih jelas
+        if (errorMsg.includes("JSON") || errorMsg.includes("token")) {
+          errorMsg = "Server mengembalikan response yang tidak valid. Cek koneksi atau coba lagi.";
+        }
+      }
+      toast.error(errorMsg);
     } finally {
       // Minimum delay untuk UX yang baik
       await new Promise((r) => setTimeout(r, 300));

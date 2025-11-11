@@ -13,23 +13,75 @@ async function getSessionUserId(req: Request): Promise<string | null> {
 }
 
 export async function GET(req: Request) {
-  const userId = await getSessionUserId(req);
-  if (!userId) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-  const s = await prisma.settings.upsert({
-    where: { userId },
-    update: {},
-    create: { userId },
-  });
-  return NextResponse.json(s ?? {});
+  try {
+    let userId: string | null = null;
+    try {
+      userId = await getSessionUserId(req);
+    } catch (sessionError: any) {
+      console.error("[SESSION ERROR GET]", sessionError);
+      return NextResponse.json(
+        { error: "Gagal memverifikasi sesi" },
+        { status: 401 }
+      );
+    }
+    
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Tidak terautentikasi" },
+        { status: 401 }
+      );
+    }
+    
+    const s = await prisma.settings.upsert({
+      where: { userId },
+      update: {},
+      create: { userId },
+    });
+    
+    return NextResponse.json(s ?? {});
+  } catch (error: any) {
+    console.error("[SETTINGS GET ERROR]", error);
+    return NextResponse.json(
+      { error: error.message || "Gagal mengambil pengaturan" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PATCH(req: Request) {
   try {
-    const userId = await getSessionUserId(req);
-    if (!userId) return NextResponse.json({ error: "Tidak terautentikasi" }, { status: 401 });
+    // Get user session with error handling
+    let userId: string | null = null;
+    try {
+      userId = await getSessionUserId(req);
+    } catch (sessionError: any) {
+      console.error("[SESSION ERROR]", sessionError);
+      return NextResponse.json(
+        { error: "Gagal memverifikasi sesi. Silakan login ulang." },
+        { status: 401 }
+      );
+    }
     
-    const body = await req.json();
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Tidak terautentikasi. Silakan login ulang." },
+        { status: 401 }
+      );
+    }
     
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError: any) {
+      console.error("[BODY PARSE ERROR]", parseError);
+      return NextResponse.json(
+        { error: "Data request tidak valid" },
+        { status: 400 }
+      );
+    }
+    
+    // Update settings in database
     const updated = await prisma.settings.upsert({
       where: { userId },
       update: body,
