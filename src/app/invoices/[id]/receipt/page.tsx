@@ -18,6 +18,7 @@ export default function PrintReceiptPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [ready, setReady] = useState(false);
   const sheetRef = useRef<HTMLDivElement>(null);
+  // getSettings() sudah include logo dari localStorage
   const s = useMemo(() => getSettings(), []);
   const displayId = useMemo(() => {
     if (!invoice) return "";

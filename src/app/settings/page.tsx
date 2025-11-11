@@ -137,17 +137,24 @@ export default function SettingsPage() {
       const toSave = { ...settings };
       
       // Validasi ukuran logo sebelum dikirim
-      if (toSave.logoUrl && toSave.logoUrl.length > 5 * 1024 * 1024) {
-        toast.error("Logo terlalu besar. Maksimal 5MB. Silakan kompres atau gunakan gambar lebih kecil.");
+      // Railway memiliki limit ~512KB-1MB untuk request body
+      // Base64 encoding membuat file ~33% lebih besar
+      // Jadi file 750KB → ~1MB base64 (too risky)
+      
+      const MAX_LOGO_SERVER = 500 * 1024; // 500KB dalam base64 (≈375KB file asli)
+      const MAX_LOGO_LOCAL = 2 * 1024 * 1024; // 2MB untuk localStorage
+      
+      if (toSave.logoUrl && toSave.logoUrl.length > MAX_LOGO_LOCAL) {
+        toast.error("Logo terlalu besar. Maksimal 2MB. Silakan kompres atau gunakan gambar lebih kecil.");
         setSaving(false);
         return;
       }
       
-      // Untuk Railway: Cek apakah logo menyebabkan masalah, skip jika perlu
-      // Logo disimpan di localStorage saja, tidak ke server jika > 1MB untuk avoid Railway limits
-      const skipLogoToServer = toSave.logoUrl && toSave.logoUrl.length > 1 * 1024 * 1024;
+      // Untuk Railway: Logo > 500KB tidak dikirim ke server (hanya simpan lokal)
+      const skipLogoToServer = toSave.logoUrl && toSave.logoUrl.length > MAX_LOGO_SERVER;
       if (skipLogoToServer) {
-        console.warn('[SETTINGS SAVE] Logo > 1MB, will skip sending to server (Railway limitation)');
+        const logoSizeKB = (toSave.logoUrl.length / 1024).toFixed(0);
+        console.warn(`[SETTINGS SAVE] Logo ${logoSizeKB}KB > 500KB, will skip sending to server (Railway limitation)`);
       }
       
       // Pastikan field legacy ikut tersimpan dari akun pertama
@@ -396,7 +403,10 @@ export default function SettingsPage() {
                 >Hapus Logo</button>
               </div>
             ) : (
-              <div className="text-xs text-black/50 mt-1">Unggah file gambar (PNG/JPG/SVG). Logo tersimpan lokal.</div>
+              <div className="text-xs text-black/50 mt-1">
+                Unggah file gambar (PNG/JPG/SVG). <strong>Rekomendasi: max 300-400KB</strong> agar bisa disimpan di server.
+                <br />Logo > 500KB hanya tersimpan lokal (limitasi Railway).
+              </div>
             )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

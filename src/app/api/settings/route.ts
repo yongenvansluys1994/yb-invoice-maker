@@ -80,12 +80,13 @@ export async function PATCH(req: Request) {
       const contentLengthNum = contentLength ? parseInt(contentLength) : 0;
       console.log('[SETTINGS] Content-Length:', contentLength, 'bytes');
       
-      // Check if request body is too large (10MB limit)
-      const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+      // Check if request body is too large
+      // Railway has ~512KB-1MB body size limit by default
+      const MAX_SIZE = 1 * 1024 * 1024; // 1MB (Railway safe limit)
       if (contentLengthNum > MAX_SIZE) {
         console.error('[SETTINGS] Request too large:', contentLengthNum, 'bytes');
         return NextResponse.json(
-          { error: `Request terlalu besar (${(contentLengthNum / 1024 / 1024).toFixed(2)}MB). Maksimal 10MB.` },
+          { error: `Request terlalu besar (${(contentLengthNum / 1024).toFixed(0)}KB). Maksimal 1MB.` },
           { status: 413 }
         );
       }
@@ -129,10 +130,12 @@ export async function PATCH(req: Request) {
       }
       
       // Check if logoUrl is too large
-      if (body.logoUrl && typeof body.logoUrl === 'string' && body.logoUrl.length > 5 * 1024 * 1024) {
+      // Logo should be max 500KB (Railway constraint)
+      const MAX_LOGO_SIZE = 500 * 1024; // 500KB
+      if (body.logoUrl && typeof body.logoUrl === 'string' && body.logoUrl.length > MAX_LOGO_SIZE) {
         console.warn('[SETTINGS] Logo too large:', body.logoUrl.length, 'bytes');
         return NextResponse.json(
-          { error: `Logo terlalu besar (${(body.logoUrl.length / 1024 / 1024).toFixed(2)}MB). Maksimal 5MB.` },
+          { error: `Logo terlalu besar (${(body.logoUrl.length / 1024).toFixed(0)}KB). Maksimal 500KB.` },
           { status: 413 }
         );
       }

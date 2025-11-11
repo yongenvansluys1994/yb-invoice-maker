@@ -48,12 +48,21 @@ export default function PrintInvoicePage() {
     })();
   }, [params.id]);
 
-  // Ambil pengaturan dari server (session) agar tidak bergantung pada localStorage
+  // Ambil pengaturan dari server (session), tapi prioritas logo dari localStorage
   useEffect(() => {
     (async () => {
       try {
+        const localSettings = getSettings(); // Ambil lokal dulu (termasuk logo)
         const serverSettings = await fetchSettings();
-        setS(serverSettings);
+        
+        // Merge: gunakan server settings tapi pertahankan logo dari localStorage jika ada
+        const merged = {
+          ...serverSettings,
+          // Logo dari localStorage dipertahankan (karena mungkin > 500KB tidak tersimpan di server)
+          logoUrl: localSettings.logoUrl || serverSettings.logoUrl,
+        };
+        
+        setS(merged);
       } catch {
         // Biarkan tetap pakai getSettings() jika gagal fetch
       }

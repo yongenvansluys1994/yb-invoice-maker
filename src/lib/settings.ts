@@ -59,8 +59,8 @@ export function getSettings(): Required<AppSettings> {
       try {
         const localRaw = localStorage.getItem(`invgenz:${uid}:settings`) || "{}";
         const local = JSON.parse(localRaw) as AppSettings;
-        // Logo selalu dari lokal (jika ada)
-        if (!merged.logoUrl && local.logoUrl) merged.logoUrl = local.logoUrl as any;
+        // Logo SELALU dari localStorage (prioritas tertinggi, karena bisa > 500KB yang tidak tersimpan di server)
+        if (local.logoUrl) merged.logoUrl = local.logoUrl as any;
         // Field regional dan format selalu mengikuti lokal jika tersedia
       if (local.currency) merged.currency = local.currency as any;
       if (local.language) merged.language = local.language as any;
