@@ -53,7 +53,10 @@ export default function PrintInvoicePage() {
     (async () => {
       try {
         const localSettings = getSettings(); // Ambil lokal dulu (termasuk logo)
+        console.log('[PRINT] Local settings logoUrl length:', localSettings.logoUrl?.length || 0);
+        
         const serverSettings = await fetchSettings();
+        console.log('[PRINT] Server settings logoUrl length:', serverSettings.logoUrl?.length || 0);
         
         // Merge: gunakan server settings tapi pertahankan logo dari localStorage jika ada
         const merged = {
@@ -62,8 +65,10 @@ export default function PrintInvoicePage() {
           logoUrl: localSettings.logoUrl || serverSettings.logoUrl,
         };
         
+        console.log('[PRINT] Final merged logoUrl length:', merged.logoUrl?.length || 0);
         setS(merged);
-      } catch {
+      } catch (err) {
+        console.error('[PRINT] Error loading settings:', err);
         // Biarkan tetap pakai getSettings() jika gagal fetch
       }
     })();

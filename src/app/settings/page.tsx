@@ -28,7 +28,16 @@ type AppSettings = {
 
 function loadSettings(): AppSettings {
   try {
-    const raw = localStorage.getItem("invgenz:settings") || "{}";
+    // Gunakan uid yang sama dengan lib/settings.ts
+    const uid = (() => {
+      try {
+        const u = sessionStorage.getItem("invgenz:uid");
+        return u && u.trim() ? u : "global";
+      } catch {
+        return "global";
+      }
+    })();
+    const raw = localStorage.getItem(`invgenz:${uid}:settings`) || localStorage.getItem("invgenz:settings") || "{}";
     const s = JSON.parse(raw);
     // Hanya ambil field yang diizinkan dari localStorage
     const merged: AppSettings = {
@@ -87,7 +96,15 @@ export default function SettingsPage() {
         setLoadingServer(true);
         const server = await fetchSettings();
         // Gabungkan beberapa field dari lokal jika server kosong (untuk menjaga nilai yang pernah disimpan lokal)
-        const localRaw = localStorage.getItem("invgenz:settings") || "{}";
+        const uid = (() => {
+          try {
+            const u = sessionStorage.getItem("invgenz:uid");
+            return u && u.trim() ? u : "global";
+          } catch {
+            return "global";
+          }
+        })();
+        const localRaw = localStorage.getItem(`invgenz:${uid}:settings`) || localStorage.getItem("invgenz:settings") || "{}";
         const local = JSON.parse(localRaw) as AppSettings;
         let next: AppSettings = { ...server } as AppSettings;
 
@@ -117,7 +134,7 @@ export default function SettingsPage() {
               defaultTaxRate: next.defaultTaxRate,
               defaultPphRate: next.defaultPphRate,
             };
-            localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
+            localStorage.setItem(`invgenz:${uid}:settings`, JSON.stringify(allowedLocal));
           } catch {}
         applyTheme(String(next.themeKey || "pastel1"));
         setLoadingServer(false);
@@ -294,7 +311,8 @@ export default function SettingsPage() {
           defaultTaxRate: toSave.defaultTaxRate,
           defaultPphRate: toSave.defaultPphRate,
         };
-        localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
+        const uid = sessionStorage.getItem("invgenz:uid") || "global";
+        localStorage.setItem(`invgenz:${uid}:settings`, JSON.stringify(allowedLocal));
         
         // Clear sessionStorage cache agar logo baru langsung muncul tanpa refresh
         try {
