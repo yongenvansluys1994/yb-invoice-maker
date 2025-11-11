@@ -295,6 +295,17 @@ export default function SettingsPage() {
           defaultPphRate: toSave.defaultPphRate,
         };
         localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
+        
+        // Clear sessionStorage cache agar logo baru langsung muncul tanpa refresh
+        try {
+          const uid = sessionStorage.getItem("invgenz:uid") || "global";
+          sessionStorage.removeItem(`invgenz:${uid}:settings:server`);
+        } catch {}
+        
+        // Dispatch event agar komponen lain (AppShell, Invoice) tau settings berubah
+        try {
+          window.dispatchEvent(new CustomEvent("invgenz:settings-updated"));
+        } catch {}
       } catch {}
 
       applyTheme(settings.themeKey || "pastel1");

@@ -18,7 +18,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isPrintRoute) return; // Hindari fetch tambahan saat halaman print untuk mengurangi noise jaringan
-    (async () => {
+    
+    const loadSettings = async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         if (res.ok) {
@@ -28,8 +29,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       } catch {}
       const data = await fetchSettings();
       setS(data);
-    })();
-  }, []);
+    };
+    
+    loadSettings();
+    
+    // Listen untuk event settings updated dari settings page
+    const handleSettingsUpdate = () => {
+      console.log('[AppShell] Settings updated, reloading...');
+      loadSettings();
+    };
+    
+    window.addEventListener("invgenz:settings-updated", handleSettingsUpdate);
+    return () => window.removeEventListener("invgenz:settings-updated", handleSettingsUpdate);
+  }, [isPrintRoute]);
 
   async function onLogout() {
     try {
