@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { ToastPayload, ToastType } from "@/lib/toast";
 
 type ToastItem = {
@@ -26,6 +27,11 @@ function styleByType(t: ToastType) {
 
 export default function ToastProvider() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     function onToast(e: Event) {
@@ -51,12 +57,24 @@ export default function ToastProvider() {
     return () => window.removeEventListener("invgenz:toast", onToast as EventListener);
   }, []);
 
-  return (
-    <div className="pointer-events-none fixed top-4 right-4 z-[2000] flex flex-col gap-2">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div 
+      className="pointer-events-none fixed bottom-6 right-6 z-[9998] flex flex-col-reverse gap-2"
+      style={{
+        position: 'fixed',
+        bottom: '1.5rem',
+        right: '1.5rem',
+        zIndex: 9998,
+        pointerEvents: 'none'
+      }}
+    >
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`pointer-events-auto shadow-sm rounded-xl border ${styleByType(t.type)} px-4 py-3 w-[320px]`}
+          className={`pointer-events-auto shadow-lg rounded-xl border ${styleByType(t.type)} px-4 py-3 w-[320px] animate-slide-up`}
+          style={{ pointerEvents: 'auto' }}
         >
           {t.title ? <div className="text-sm font-semibold">{t.title}</div> : null}
           <div className="text-sm">{t.message}</div>
@@ -67,6 +85,7 @@ export default function ToastProvider() {
           >×</button>
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   );
 }

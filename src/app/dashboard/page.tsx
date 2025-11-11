@@ -6,7 +6,7 @@ import ChartMini from "@/components/ChartMini";
 import ChartBarMini from "@/components/ChartBarMini";
 import type { Invoice } from "@/types/invoice";
 import { FileText, DollarSign, Clock, Users, AlertTriangle } from "lucide-react";
-import { formatCurrency, formatDate, getSettings } from "@/lib/settings";
+import { formatCurrency, formatDate, getSettings, fetchSettings } from "@/lib/settings";
 
 function monthLabels(count: number) {
   const { language } = getSettings();
@@ -40,16 +40,24 @@ export default function DashboardPage() {
     })();
   }, []);
 
-  // Tampilkan modal pengingat bila nama pemilik/penandatangan belum diisi
+  // Tampilkan modal pengingat bila nama pemilik/penandatangan belum diisi (cek ke server agar akurat)
   useEffect(() => {
-    try {
-      const s = getSettings();
-      const missingOwner = !s.ownerName || String(s.ownerName).trim() === "";
-      const missingTitle = !s.ownerTitle || String(s.ownerTitle).trim() === "";
-      if (missingOwner || missingTitle) {
-        setShowProfileReminder(true);
+    (async () => {
+      try {
+        const s = await fetchSettings();
+        const missingOwner = !s.ownerName || String(s.ownerName).trim() === "";
+        const missingTitle = !s.ownerTitle || String(s.ownerTitle).trim() === "";
+        setShowProfileReminder(missingOwner || missingTitle);
+      } catch {
+        // Fallback ke cache lokal jika fetch gagal
+        try {
+          const s = getSettings();
+          const missingOwner = !s.ownerName || String(s.ownerName).trim() === "";
+          const missingTitle = !s.ownerTitle || String(s.ownerTitle).trim() === "";
+          setShowProfileReminder(missingOwner || missingTitle);
+        } catch {}
       }
-    } catch {}
+    })();
   }, []);
 
   const totalRevenue = useMemo(

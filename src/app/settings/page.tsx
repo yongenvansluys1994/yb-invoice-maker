@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchSettings } from "@/lib/settings";
 import SoftCard from "@/components/SoftCard";
 import { toast } from "@/lib/toast";
@@ -74,6 +75,11 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings>(loadSettings());
   const [saving, setSaving] = useState(false);
   const [loadingServer, setLoadingServer] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -134,81 +140,115 @@ export default function SettingsPage() {
         toSave.bankName = toSave.bankAccounts![0].bankName;
         toSave.bankAccount = toSave.bankAccounts![0].accountNumber;
       }
-      // Simpan hanya field yang diizinkan ke localStorage
-          try {
-            const allowedLocal: Partial<AppSettings> = {
-              logoUrl: toSave.logoUrl,
-              currency: toSave.currency,
-              language: toSave.language,
-              themeKey: toSave.themeKey,
-              invoicePrefix: toSave.invoicePrefix,
-              defaultTaxRate: toSave.defaultTaxRate,
-              defaultPphRate: toSave.defaultPphRate,
-            };
-            localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
-          } catch {}
 
       // Simpan ke server untuk semua field inti termasuk owner, daftar rekening, dan logo
-        const payload = {
-          companyName: toSave.companyName || "YB Invoice Maker",
-          logoUrl: toSave.logoUrl || "",
-          bankName: toSave.bankName || "Bank BCA",
-          bankAccount: toSave.bankAccount || "1234567890",
-          address: toSave.address || "",
-          npwp: toSave.npwp || "",
-          invoicePrefix: toSave.invoicePrefix || "INV",
-          defaultTaxRate: typeof toSave.defaultTaxRate === "number" ? toSave.defaultTaxRate : 11,
-          defaultPphRate: typeof toSave.defaultPphRate === "number" ? toSave.defaultPphRate : 1.5,
-          currency: toSave.currency || "IDR",
-          language: toSave.language || "id-ID",
-          themeKey: toSave.themeKey || "pastel1",
-          ownerName: toSave.ownerName || "",
-          ownerTitle: toSave.ownerTitle || "",
-          smtpEmail: toSave.smtpEmail || "",
-          smtpAppPassword: toSave.smtpAppPassword || "",
-          bankAccounts: (toSave.bankAccounts || []).map(a => ({ bankName: a.bankName, accountNumber: a.accountNumber, alias: a.alias || undefined })),
-        };
-      let serverSaved = false;
-      try {
-        const res = await fetch("/api/settings", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        serverSaved = res.ok;
-      } catch {
-        // Biarkan tersimpan lokal saja bila gagal
+      const payload = {
+        companyName: toSave.companyName || "YB Invoice Maker",
+        logoUrl: toSave.logoUrl || "",
+        bankName: toSave.bankName || "Bank BCA",
+        bankAccount: toSave.bankAccount || "1234567890",
+        address: toSave.address || "",
+        npwp: toSave.npwp || "",
+        invoicePrefix: toSave.invoicePrefix || "INV",
+        defaultTaxRate: typeof toSave.defaultTaxRate === "number" ? toSave.defaultTaxRate : 11,
+        defaultPphRate: typeof toSave.defaultPphRate === "number" ? toSave.defaultPphRate : 1.5,
+        currency: toSave.currency || "IDR",
+        language: toSave.language || "id-ID",
+        themeKey: toSave.themeKey || "pastel1",
+        ownerName: toSave.ownerName || "",
+        ownerTitle: toSave.ownerTitle || "",
+        smtpEmail: toSave.smtpEmail || "",
+        smtpAppPassword: toSave.smtpAppPassword || "",
+        bankAccounts: (toSave.bankAccounts || []).map(a => ({ bankName: a.bankName, accountNumber: a.accountNumber, alias: a.alias || undefined })),
+      };
+
+      const res = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        // Ambil pesan error dari server
+        let errorMsg = "Gagal menyimpan ke server";
+        try {
+          const errData = await res.json();
+          if (errData.error) {
+            errorMsg = `Gagal: ${errData.error}`;
+          }
+        } catch {
+          errorMsg = `Gagal: ${res.status} ${res.statusText}`;
+        }
+        toast.error(errorMsg);
+        return;
       }
 
+      // Jika berhasil simpan ke server, baru simpan ke localStorage untuk field tertentu
+      try {
+        const allowedLocal: Partial<AppSettings> = {
+          logoUrl: toSave.logoUrl,
+          currency: toSave.currency,
+          language: toSave.language,
+          themeKey: toSave.themeKey,
+          invoicePrefix: toSave.invoicePrefix,
+          defaultTaxRate: toSave.defaultTaxRate,
+          defaultPphRate: toSave.defaultPphRate,
+        };
+        localStorage.setItem("invgenz:settings", JSON.stringify(allowedLocal));
+      } catch {}
+
       applyTheme(settings.themeKey || "pastel1");
-      if (serverSaved) {
-        toast.success("Pengaturan berhasil disimpan");
-      } else {
-        toast.error("Gagal menyimpan ke server. Pengaturan tersimpan lokal.");
-      }
-    } catch {
-      toast.error("Gagal menyimpan pengaturan");
+      toast.success("Pengaturan berhasil disimpan");
+    } catch (err) {
+      // Network error atau error lainnya
+      const errorMsg = err instanceof Error ? err.message : "Terjadi kesalahan";
+      toast.error(`Gagal menyimpan: ${errorMsg}`);
     } finally {
-      // Pastikan indikator loading terlihat sebentar
-      await new Promise((r) => setTimeout(r, 600));
+      // Minimum delay untuk UX yang baik
+      await new Promise((r) => setTimeout(r, 300));
       setSaving(false);
     }
   }
 
   return (
-    <div className="grid gap-6">
-      {loadingServer ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-white/60 backdrop-blur-sm">
-          <div className="flex items-center gap-3 rounded-xl border border-black/10 bg-white px-4 py-3 shadow">
-            <Loader2 className="h-5 w-5 animate-spin text-violet-600" />
-            <span className="text-sm text-black/70">Memuat pengaturan…</span>
+    <>
+      {/* Modal loading menggunakan Portal agar benar-benar fixed ke viewport */}
+      {mounted && saving && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0,
+            margin: 0,
+            padding: 0
+          }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl px-8 py-6 flex flex-col items-center gap-4 min-w-[280px]">
+            <Loader2 className="h-10 w-10 animate-spin text-violet-600" aria-label="Menyimpan" />
+            <div className="text-center">
+              <div className="font-semibold text-lg">Menyimpan Pengaturan</div>
+              <div className="text-sm text-black/60 mt-1">Mohon tunggu sebentar...</div>
+            </div>
           </div>
+        </div>,
+        document.body
+      )}
+
+      <div className="grid gap-6">
+        {/* Loading saat pertama kali fetch dari server */}
+        {loadingServer ? (
+          <div className="fixed inset-0 z-50 flex justify-center pt-24 bg-white/60 backdrop-blur-sm">
+            <Loader2 className="h-8 w-8 animate-spin text-violet-600" aria-label="Memuat" />
+          </div>
+        ) : null}
+
+        <div>
+          <h2 className="text-2xl font-semibold">Pengaturan</h2>
+          <p className="text-sm text-black/60">Kelola pengaturan global aplikasi</p>
         </div>
-      ) : null}
-      <div>
-        <h2 className="text-2xl font-semibold">Pengaturan</h2>
-        <p className="text-sm text-black/60">Kelola pengaturan global aplikasi</p>
-      </div>
 
       {/* Informasi Perusahaan */}
       <SoftCard className="p-6">
@@ -421,12 +461,13 @@ export default function SettingsPage() {
         </div>
       </SoftCard>
 
-      <div className="flex justify-end">
-        <button onClick={save} disabled={saving} className="rounded-2xl pastel-gradient-alt text-black/80 px-4 py-2 border border-black/10 hover:opacity-90 disabled:opacity-60 flex items-center gap-2" aria-busy={saving} aria-live="polite">
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-          <span>{saving ? "Menyimpan…" : "Simpan Pengaturan"}</span>
-        </button>
+        <div className="flex justify-end">
+          <button onClick={save} disabled={saving} className="rounded-2xl pastel-gradient-alt text-black/80 px-4 py-2 border border-black/10 hover:opacity-90 disabled:opacity-60 flex items-center gap-2" aria-busy={saving} aria-live="polite">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            <span>{saving ? "Menyimpan…" : "Simpan Pengaturan"}</span>
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

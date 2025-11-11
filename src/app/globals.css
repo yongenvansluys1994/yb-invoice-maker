@@ -52,6 +52,22 @@ body {
   @apply transition-colors duration-300;
 }
 
+/* Toast slide-up animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
 /* Print rules: sembunyikan sidebar/drawer dan reset layout */
 @media print {
   aside { display: none !important; }
